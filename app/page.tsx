@@ -30,14 +30,14 @@ export default function HomePage() {
     year: "numeric",
   });
 
-  const nav = [
+  const nav: { label: string; href: string }[] = [
     { label: "Dashboard", href: "/" },
-    { label: "Discover Jobs", href: "/discover" },
+    { label: "AI Matches", href: "/discover" },
     { label: "Applications", href: "/applications" },
     { label: "Calendar", href: "/calendar" },
     { label: "AI Coach", href: "/coach" },
     { label: "Profile", href: "/profile" },
-  ] as const;
+  ];
 
   const events: EventItem[] = [
     {
@@ -304,30 +304,20 @@ export default function HomePage() {
 
           <nav className="px-4 py-6">
             <div className="space-y-1">
-              {nav.map((item) =>
-                item.href ? (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-                      pathname === item.href
-                        ? "bg-indigo-50 text-indigo-700"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                    }`}
-                  >
-                    <span className="mr-3 inline-block h-2.5 w-2.5 rounded-full bg-current opacity-60" />
-                    {item.label}
-                  </Link>
-                ) : (
-                  <div
-                    key={item.label}
-                    className="flex w-full cursor-not-allowed items-center rounded-2xl px-4 py-3 text-left text-sm font-medium text-slate-400"
-                  >
-                    <span className="mr-3 inline-block h-2.5 w-2.5 rounded-full bg-current opacity-40" />
-                    {item.label}
-                  </div>
-                )
-              )}
+            {nav.map((item) => (
+  <Link
+    key={item.label}
+    href={item.href}
+    className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
+      pathname === item.href
+        ? "bg-indigo-50 text-indigo-700"
+        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+    }`}
+  >
+    <span className="mr-3 inline-block h-2.5 w-2.5 rounded-full bg-current opacity-60" />
+    {item.label}
+  </Link>
+))}
             </div>
           </nav>
 
