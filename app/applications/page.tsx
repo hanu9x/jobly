@@ -1,169 +1,119 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 type ApplicationStatus =
-  | "Saved"
-  | "Applying"
-  | "Applied"
-  | "Interview"
-  | "Offer"
-  | "Rejected";
+  | "saved"
+  | "applying"
+  | "applied"
+  | "interview"
+  | "offer"
+  | "rejected";
 
 type ApplicationItem = {
-  id: number;
+  id: string;
   company: string;
   role: string;
-  location: string;
+  location: string | null;
   status: ApplicationStatus;
-  appliedDate: string;
-  nextAction: string;
-  recruiter: string;
+  deadline: string | null;
+  notes: string | null;
+  created_at: string;
 };
 
-const applications: ApplicationItem[] = [
-  {
-    id: 1,
-    company: "Stripe",
-    role: "Data Analyst Intern",
-    location: "Remote",
-    status: "Applied",
-    appliedDate: "Apr 3",
-    nextAction: "Follow up tomorrow",
-    recruiter: "Sarah Kim",
-  },
-  {
-    id: 2,
-    company: "Google",
-    role: "Business Analyst Intern",
-    location: "Mountain View",
-    status: "Interview",
-    appliedDate: "Apr 5",
-    nextAction: "Interview on Friday",
-    recruiter: "Daniel Lee",
-  },
-  {
-    id: 3,
-    company: "Uber",
-    role: "Strategy & Operations Intern",
-    location: "San Francisco",
-    status: "Saved",
-    appliedDate: "—",
-    nextAction: "Deadline on Sunday",
-    recruiter: "—",
-  },
-  {
-    id: 4,
-    company: "Ramp",
-    role: "Growth Analyst",
-    location: "New York",
-    status: "Applying",
-    appliedDate: "—",
-    nextAction: "Finish resume edits",
-    recruiter: "—",
-  },
-  {
-    id: 5,
-    company: "Meta",
-    role: "Data Science Intern",
-    location: "Menlo Park",
-    status: "Applied",
-    appliedDate: "Apr 7",
-    nextAction: "Follow up next week",
-    recruiter: "Ava Martinez",
-  },
-  {
-    id: 6,
-    company: "Amazon",
-    role: "Business Analyst",
-    location: "Seattle",
-    status: "Interview",
-    appliedDate: "Apr 2",
-    nextAction: "Prep SQL questions",
-    recruiter: "Noah Patel",
-  },
-  {
-    id: 7,
-    company: "Notion",
-    role: "Product Analyst",
-    location: "San Francisco",
-    status: "Saved",
-    appliedDate: "—",
-    nextAction: "Apply before deadline",
-    recruiter: "—",
-  },
-  {
-    id: 8,
-    company: "Figma",
-    role: "Strategy Intern",
-    location: "San Francisco",
-    status: "Offer",
-    appliedDate: "Mar 28",
-    nextAction: "Review offer terms",
-    recruiter: "Julia Park",
-  },
-  {
-    id: 9,
-    company: "Palantir",
-    role: "Forward Deployed Intern",
-    location: "New York",
-    status: "Rejected",
-    appliedDate: "Mar 22",
-    nextAction: "Archive",
-    recruiter: "—",
-  },
+const columns: ApplicationStatus[] = [
+  "saved",
+  "applying",
+  "applied",
+  "interview",
+  "offer",
+  "rejected",
 ];
 
-const columns: ApplicationStatus[] = [
-  "Saved",
-  "Applying",
-  "Applied",
-  "Interview",
-  "Offer",
-  "Rejected",
-];
+function formatStatus(status: ApplicationStatus) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 
 function getStatusStyles(status: ApplicationStatus) {
   switch (status) {
-    case "Saved":
+    case "saved":
       return "bg-slate-100 text-slate-700";
-    case "Applying":
+    case "applying":
       return "bg-emerald-100 text-emerald-700";
-    case "Applied":
+    case "applied":
       return "bg-blue-100 text-blue-700";
-    case "Interview":
+    case "interview":
       return "bg-violet-100 text-violet-700";
-    case "Offer":
+    case "offer":
       return "bg-amber-100 text-amber-700";
-    case "Rejected":
+    case "rejected":
       return "bg-rose-100 text-rose-700";
-    default:
-      return "bg-slate-100 text-slate-700";
   }
 }
 
 export default function ApplicationsPage() {
   const [view, setView] = useState<"board" | "table">("board");
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [location, setLocation] = useState("");
   const [deadline, setDeadline] = useState("");
+
+  const fetchApplications = async () => {
+    setLoading(true);
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) {
+      setApplications([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      alert("Error loading applications.");
+    } else {
+      setApplications((data || []) as ApplicationItem[]);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchApplications();
+  }, []);
 
   const grouped = useMemo(() => {
     return columns.reduce((acc, column) => {
       acc[column] = applications.filter((app) => app.status === column);
       return acc;
     }, {} as Record<ApplicationStatus, ApplicationItem[]>);
-  }, []);
+  }, [applications]);
 
   const addApplication = async () => {
     const { data: userData } = await supabase.auth.getUser();
     const user = userData.user;
 
     if (!user) {
-      alert("You must be logged in first. Next step: we add login.");
+      alert("Please log in first.");
+      window.location.href = "/login";
+      return;
+    }
+
+    if (!company.trim() || !role.trim()) {
+      alert("Please enter a company and role.");
       return;
     }
 
@@ -172,7 +122,7 @@ export default function ApplicationsPage() {
         user_id: user.id,
         company,
         role,
-        location,
+        location: location || null,
         deadline: deadline || null,
         status: "saved",
       },
@@ -184,11 +134,24 @@ export default function ApplicationsPage() {
       return;
     }
 
-    alert("Application added!");
     setCompany("");
     setRole("");
     setLocation("");
     setDeadline("");
+
+    await fetchApplications();
+  };
+
+  const deleteApplication = async (id: string) => {
+    const { error } = await supabase.from("applications").delete().eq("id", id);
+
+    if (error) {
+      console.error(error);
+      alert("Error deleting application.");
+      return;
+    }
+
+    await fetchApplications();
   };
 
   return (
@@ -215,11 +178,19 @@ export default function ApplicationsPage() {
             >
               Back to Dashboard
             </Link>
+
             <Link
               href="/discover"
               className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
             >
               AI Matches
+            </Link>
+
+            <Link
+              href="/login"
+              className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
+            >
+              Login
             </Link>
           </div>
         </div>
@@ -229,7 +200,7 @@ export default function ApplicationsPage() {
             Add Application
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            This is the first real database-connected action. Login comes next.
+            Add a real application to your database.
           </p>
 
           <div className="mt-5 grid gap-3 md:grid-cols-4">
@@ -266,7 +237,7 @@ export default function ApplicationsPage() {
             onClick={addApplication}
             className="mt-4 rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-200"
           >
-            Add to Database
+            Add Application
           </button>
         </div>
 
@@ -278,16 +249,18 @@ export default function ApplicationsPage() {
                 {applications.length}
               </div>
             </div>
+
             <div className="rounded-2xl bg-violet-50 p-4">
               <div className="text-sm text-violet-500">Interviews</div>
               <div className="mt-2 text-2xl font-semibold text-violet-700">
-                {grouped.Interview.length}
+                {grouped.interview.length}
               </div>
             </div>
+
             <div className="rounded-2xl bg-amber-50 p-4">
               <div className="text-sm text-amber-500">Offers</div>
               <div className="mt-2 text-2xl font-semibold text-amber-700">
-                {grouped.Offer.length}
+                {grouped.offer.length}
               </div>
             </div>
           </div>
@@ -303,6 +276,7 @@ export default function ApplicationsPage() {
             >
               Board
             </button>
+
             <button
               onClick={() => setView("table")}
               className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
@@ -316,7 +290,21 @@ export default function ApplicationsPage() {
           </div>
         </div>
 
-        {view === "board" ? (
+        {loading ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500">
+            Loading applications...
+          </div>
+        ) : applications.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
+            <div className="text-lg font-semibold text-slate-900">
+              No applications yet
+            </div>
+            <p className="mt-2 text-sm text-slate-500">
+              Add your first application above to start building your real
+              pipeline.
+            </p>
+          </div>
+        ) : view === "board" ? (
           <div className="grid gap-4 xl:grid-cols-6">
             {columns.map((column) => (
               <div
@@ -325,7 +313,7 @@ export default function ApplicationsPage() {
               >
                 <div className="mb-4 flex items-center justify-between">
                   <div className="text-sm font-semibold text-slate-900">
-                    {column}
+                    {formatStatus(column)}
                   </div>
                   <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
                     {grouped[column].length}
@@ -334,24 +322,37 @@ export default function ApplicationsPage() {
 
                 <div className="space-y-3">
                   {grouped[column].map((app) => (
-                    <Link
+                    <div
                       key={app.id}
-                      href={`/applications/${app.id}`}
-                      className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white hover:shadow-sm"
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white hover:shadow-sm"
                     >
                       <div className="text-sm font-semibold text-slate-900">
                         {app.company}
                       </div>
+
                       <div className="mt-1 text-sm text-slate-600">
                         {app.role}
                       </div>
+
                       <div className="mt-3 text-xs text-slate-500">
-                        {app.location}
+                        {app.location || "No location"}
                       </div>
+
                       <div className="mt-3 text-xs font-medium text-slate-500">
-                        {app.nextAction}
+                        {app.deadline
+                          ? `Deadline: ${new Date(
+                              app.deadline
+                            ).toLocaleDateString()}`
+                          : "No deadline"}
                       </div>
-                    </Link>
+
+                      <button
+                        onClick={() => deleteApplication(app.id)}
+                        className="mt-4 text-xs font-semibold text-rose-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   ))}
 
                   {grouped[column].length === 0 && (
@@ -372,43 +373,51 @@ export default function ApplicationsPage() {
                     <th className="px-6 py-4 font-medium">Company</th>
                     <th className="px-6 py-4 font-medium">Role</th>
                     <th className="px-6 py-4 font-medium">Status</th>
-                    <th className="px-6 py-4 font-medium">Applied</th>
-                    <th className="px-6 py-4 font-medium">Recruiter</th>
-                    <th className="px-6 py-4 font-medium">Next Action</th>
+                    <th className="px-6 py-4 font-medium">Location</th>
+                    <th className="px-6 py-4 font-medium">Deadline</th>
+                    <th className="px-6 py-4 font-medium">Actions</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {applications.map((app) => (
                     <tr
                       key={app.id}
                       className="border-t border-slate-200 text-sm hover:bg-slate-50"
                     >
-                      <td className="px-6 py-4">
-                        <Link
-                          href={`/applications/${app.id}`}
-                          className="font-semibold text-slate-900 hover:text-indigo-600"
-                        >
-                          {app.company}
-                        </Link>
+                      <td className="px-6 py-4 font-semibold text-slate-900">
+                        {app.company}
                       </td>
+
                       <td className="px-6 py-4 text-slate-600">{app.role}</td>
+
                       <td className="px-6 py-4">
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyles(
                             app.status
                           )}`}
                         >
-                          {app.status}
+                          {formatStatus(app.status)}
                         </span>
                       </td>
+
                       <td className="px-6 py-4 text-slate-500">
-                        {app.appliedDate}
+                        {app.location || "—"}
                       </td>
+
                       <td className="px-6 py-4 text-slate-500">
-                        {app.recruiter}
+                        {app.deadline
+                          ? new Date(app.deadline).toLocaleDateString()
+                          : "—"}
                       </td>
-                      <td className="px-6 py-4 text-slate-600">
-                        {app.nextAction}
+
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => deleteApplication(app.id)}
+                          className="text-sm font-semibold text-rose-600"
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))}

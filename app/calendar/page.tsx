@@ -1,12 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabase";
 
-type EventType = "Deadline" | "Apply" | "Interview" | "Follow-up";
+type ApplicationStatus =
+  | "saved"
+  | "applying"
+  | "applied"
+  | "interview"
+  | "offer"
+  | "rejected";
+
+type ApplicationItem = {
+  id: string;
+  company: string;
+  role: string;
+  location: string | null;
+  status: ApplicationStatus;
+  deadline: string | null;
+  created_at: string;
+};
+
+type EventType = "Deadline" | "Application" | "Interview" | "Follow-up";
 
 type CalendarEvent = {
-  id: number;
+  id: string;
   title: string;
   company: string;
   role: string;
@@ -15,98 +34,81 @@ type CalendarEvent = {
 };
 
 export default function CalendarPage() {
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+  const fetchApplications = async () => {
+    setLoading(true);
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) {
+      setApplications([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      alert("Error loading calendar data.");
+    } else {
+      setApplications((data || []) as ApplicationItem[]);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchApplications();
+  }, []);
+
+  const events: CalendarEvent[] = useMemo(() => {
+    return applications
+      .filter((app) => app.deadline)
+      .map((app) => {
+        let type: EventType = "Deadline";
+
+        if (app.status === "interview") type = "Interview";
+        else if (app.status === "applied") type = "Follow-up";
+        else if (app.status === "saved" || app.status === "applying") {
+          type = "Application";
+        }
+
+        return {
+          id: app.id,
+          title:
+            type === "Interview"
+              ? `${app.company} interview`
+              : type === "Follow-up"
+              ? `Follow up with ${app.company}`
+              : type === "Application"
+              ? `Apply to ${app.company}`
+              : `${app.company} deadline`,
+          company: app.company,
+          role: app.role,
+          date: new Date(app.deadline as string),
+          type,
+        };
+      })
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [applications]);
 
   const monthName = today.toLocaleString("default", {
     month: "long",
     year: "numeric",
   });
-
-  const events: CalendarEvent[] = [
-    {
-      id: 1,
-      title: "Follow up with Stripe recruiter",
-      company: "Stripe",
-      role: "Data Analyst Intern",
-      date: new Date(currentYear, currentMonth, today.getDate(), 10, 0),
-      type: "Follow-up",
-    },
-    {
-      id: 2,
-      title: "Google interview",
-      company: "Google",
-      role: "Business Analyst Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 1, 14, 0),
-      type: "Interview",
-    },
-    {
-      id: 3,
-      title: "Uber application deadline",
-      company: "Uber",
-      role: "Strategy & Operations Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 2, 23, 59),
-      type: "Deadline",
-    },
-    {
-      id: 4,
-      title: "Apply to Ramp Growth Analyst",
-      company: "Ramp",
-      role: "Growth Analyst",
-      date: new Date(currentYear, currentMonth, today.getDate() + 3, 18, 0),
-      type: "Apply",
-    },
-    {
-      id: 5,
-      title: "Follow up with Meta recruiter",
-      company: "Meta",
-      role: "Data Science Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 4, 11, 0),
-      type: "Follow-up",
-    },
-    {
-      id: 6,
-      title: "Amazon business analyst interview",
-      company: "Amazon",
-      role: "Business Analyst",
-      date: new Date(currentYear, currentMonth, today.getDate() + 6, 13, 30),
-      type: "Interview",
-    },
-    {
-      id: 7,
-      title: "Notion product analyst deadline",
-      company: "Notion",
-      role: "Product Analyst",
-      date: new Date(currentYear, currentMonth, today.getDate() + 7, 23, 59),
-      type: "Deadline",
-    },
-    {
-      id: 8,
-      title: "Palantir application deadline",
-      company: "Palantir",
-      role: "Forward Deployed Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 2, 17, 0),
-      type: "Deadline",
-    },
-    {
-      id: 9,
-      title: "Follow up with Tesla recruiter",
-      company: "Tesla",
-      role: "Data Analyst Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 2, 12, 30),
-      type: "Follow-up",
-    },
-    {
-      id: 10,
-      title: "Apply to Figma strategy intern",
-      company: "Figma",
-      role: "Strategy Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 2, 19, 0),
-      type: "Apply",
-    },
-  ];
 
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
   const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
@@ -128,7 +130,7 @@ export default function CalendarPage() {
         return "bg-amber-100 text-amber-700";
       case "Deadline":
         return "bg-rose-100 text-rose-700";
-      case "Apply":
+      case "Application":
         return "bg-emerald-100 text-emerald-700";
       default:
         return "bg-slate-100 text-slate-700";
@@ -153,9 +155,7 @@ export default function CalendarPage() {
   const selectedDayEvents =
     selectedDay !== null ? calendarEventsByDay[selectedDay] || [] : [];
 
-  const upcoming = [...events].sort(
-    (a, b) => a.date.getTime() - b.date.getTime()
-  );
+  const upcoming = events;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -169,8 +169,8 @@ export default function CalendarPage() {
               Your job search schedule
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">
-              See interviews, deadlines, follow-ups, and application tasks in one
-              place.
+              See interviews, deadlines, follow-ups, and application tasks from
+              your real saved applications.
             </p>
           </div>
 
@@ -190,109 +190,126 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.4fr_0.7fr]">
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold tracking-tight">
-                  {monthName}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Click any event count to see details.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-7 gap-3 text-center text-sm font-semibold text-slate-500">
-              {weekDays.map((day) => (
-                <div key={day} className="py-2">
-                  {day}
+        {loading ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500">
+            Loading calendar...
+          </div>
+        ) : (
+          <div className="grid gap-6 xl:grid-cols-[1.4fr_0.7fr]">
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight">
+                    {monthName}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Click any event count to see details.
+                  </p>
                 </div>
-              ))}
-            </div>
+              </div>
 
-            <div className="mt-2 grid grid-cols-7 gap-3">
-              {calendarCells.map((day, idx) => {
-                const isToday = day === today.getDate();
-                const dayEvents = day ? calendarEventsByDay[day] || [] : [];
-
-                return (
-                  <div
-                    key={idx}
-                    className={`min-h-[125px] rounded-2xl border p-3 text-left ${
-                      day
-                        ? "border-slate-200 bg-slate-50"
-                        : "border-transparent bg-transparent"
-                    }`}
-                  >
-                    {day && (
-                      <>
-                        <div
-                          className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
-                            isToday ? "bg-indigo-600 text-white" : "text-slate-700"
-                          }`}
-                        >
-                          {day}
-                        </div>
-
-                        {dayEvents.length > 0 && (
-                          <button
-                            onClick={() => setSelectedDay(day)}
-                            className="rounded-xl bg-indigo-50 px-3 py-2 text-left text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
-                          >
-                            {dayEvents.length}{" "}
-                            {dayEvents.length === 1 ? "event" : "events"}
-                          </button>
-                        )}
-                      </>
-                    )}
+              <div className="grid grid-cols-7 gap-3 text-center text-sm font-semibold text-slate-500">
+                {weekDays.map((day) => (
+                  <div key={day} className="py-2">
+                    {day}
                   </div>
-                );
-              })}
-            </div>
-          </section>
+                ))}
+              </div>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold tracking-tight">Upcoming</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Your next scheduled actions.
-            </p>
+              <div className="mt-2 grid grid-cols-7 gap-3">
+                {calendarCells.map((day, idx) => {
+                  const isToday = day === today.getDate();
+                  const dayEvents = day ? calendarEventsByDay[day] || [] : [];
 
-            <div className="mt-5 space-y-3">
-              {upcoming.slice(0, 7).map((event) => (
-                <Link
-                  key={event.id}
-                  href={`/applications/${event.id}`}
-                  className="block rounded-2xl border border-slate-200 p-4 transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold">{event.title}</div>
-                      <div className="mt-1 text-sm text-slate-500">
-                        {event.date.toLocaleDateString("en-US", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                        })}{" "}
-                        • {formatOnlyTime(event.date)}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {event.company} • {event.role}
-                      </div>
-                    </div>
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${getEventColor(
-                        event.type
-                      )}`}
+                  return (
+                    <div
+                      key={idx}
+                      className={`min-h-[125px] rounded-2xl border p-3 text-left ${
+                        day
+                          ? "border-slate-200 bg-slate-50"
+                          : "border-transparent bg-transparent"
+                      }`}
                     >
-                      {event.type}
-                    </span>
+                      {day && (
+                        <>
+                          <div
+                            className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                              isToday
+                                ? "bg-indigo-600 text-white"
+                                : "text-slate-700"
+                            }`}
+                          >
+                            {day}
+                          </div>
+
+                          {dayEvents.length > 0 && (
+                            <button
+                              onClick={() => setSelectedDay(day)}
+                              className="rounded-xl bg-indigo-50 px-3 py-2 text-left text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                            >
+                              {dayEvents.length}{" "}
+                              {dayEvents.length === 1 ? "event" : "events"}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-xl font-semibold tracking-tight">Upcoming</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Your next scheduled actions.
+              </p>
+
+              <div className="mt-5 space-y-3">
+                {upcoming.length > 0 ? (
+                  upcoming.slice(0, 7).map((event) => (
+                    <Link
+                      key={event.id}
+                      href="/applications"
+                      className="block rounded-2xl border border-slate-200 p-4 transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold">
+                            {event.title}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            {event.date.toLocaleDateString("en-US", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            })}{" "}
+                            • {formatOnlyTime(event.date)}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {event.company} • {event.role}
+                          </div>
+                        </div>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getEventColor(
+                            event.type
+                          )}`}
+                        >
+                          {event.type}
+                        </span>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 p-5 text-sm text-slate-400">
+                    No deadlines yet. Add deadlines to your applications to see
+                    them here.
                   </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-        </div>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
       </div>
 
       {selectedDay !== null && (
@@ -351,10 +368,10 @@ export default function CalendarPage() {
                         </div>
 
                         <Link
-                          href={`/applications/${event.id}`}
+                          href="/applications"
                           className="inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-200"
                         >
-                          Open Application
+                          Open Applications
                         </Link>
                       </div>
                     </div>

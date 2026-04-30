@@ -1,14 +1,33 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { supabase } from "./lib/supabase";
 
-type EventType = "Deadline" | "Apply" | "Interview" | "Follow-up";
-type PanelKey = "Deadlines" | "Applications" | "Interviews" | "Follow-Ups Due";
+type ApplicationStatus =
+  | "saved"
+  | "applying"
+  | "applied"
+  | "interview"
+  | "offer"
+  | "rejected";
 
-type EventItem = {
-  id: number;
+type ApplicationItem = {
+  id: string;
+  company: string;
+  role: string;
+  location: string | null;
+  status: ApplicationStatus;
+  deadline: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+type EventType = "Deadline" | "Application" | "Interview" | "Follow-up";
+
+type CalendarEvent = {
+  id: string;
   title: string;
   company: string;
   role: string;
@@ -18,197 +37,97 @@ type EventItem = {
 
 export default function HomePage() {
   const pathname = usePathname();
+
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [selectedPanel, setSelectedPanel] = useState<PanelKey | null>(null);
+  const [selectedPanel, setSelectedPanel] = useState<EventType | "All Apps" | null>(
+    null
+  );
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
 
-  const monthName = today.toLocaleString("default", {
-    month: "long",
-    year: "numeric",
-  });
-
-  const nav: { label: string; href: string }[] = [
+  const nav = [
     { label: "Dashboard", href: "/" },
-    { label: "AI Matches", href: "/discover" },
+    { label: "Discover", href: "/discover" },
     { label: "Applications", href: "/applications" },
     { label: "Calendar", href: "/calendar" },
     { label: "AI Coach", href: "/coach" },
     { label: "Profile", href: "/profile" },
   ];
 
-  const events: EventItem[] = [
-    {
-      id: 1,
-      title: "Follow up with Stripe recruiter",
-      company: "Stripe",
-      role: "Data Analyst Intern",
-      date: new Date(currentYear, currentMonth, today.getDate(), 10, 0),
-      type: "Follow-up",
-    },
-    {
-      id: 2,
-      title: "Google interview",
-      company: "Google",
-      role: "Business Analyst Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 1, 14, 0),
-      type: "Interview",
-    },
-    {
-      id: 3,
-      title: "Uber application deadline",
-      company: "Uber",
-      role: "Strategy & Operations Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 2, 23, 59),
-      type: "Deadline",
-    },
-    {
-      id: 4,
-      title: "Apply to Ramp Growth Analyst",
-      company: "Ramp",
-      role: "Growth Analyst",
-      date: new Date(currentYear, currentMonth, today.getDate() + 3, 18, 0),
-      type: "Apply",
-    },
-    {
-      id: 5,
-      title: "Follow up with Meta recruiter",
-      company: "Meta",
-      role: "Data Science Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 4, 11, 0),
-      type: "Follow-up",
-    },
-    {
-      id: 6,
-      title: "Amazon business analyst interview",
-      company: "Amazon",
-      role: "Business Analyst",
-      date: new Date(currentYear, currentMonth, today.getDate() + 6, 13, 30),
-      type: "Interview",
-    },
-    {
-      id: 7,
-      title: "Notion product analyst deadline",
-      company: "Notion",
-      role: "Product Analyst",
-      date: new Date(currentYear, currentMonth, today.getDate() + 7, 23, 59),
-      type: "Deadline",
-    },
-    {
-      id: 8,
-      title: "Palantir application deadline",
-      company: "Palantir",
-      role: "Forward Deployed Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 2, 17, 0),
-      type: "Deadline",
-    },
-    {
-      id: 9,
-      title: "Follow up with Tesla recruiter",
-      company: "Tesla",
-      role: "Data Analyst Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 2, 12, 30),
-      type: "Follow-up",
-    },
-    {
-      id: 10,
-      title: "Apply to Figma strategy intern",
-      company: "Figma",
-      role: "Strategy Intern",
-      date: new Date(currentYear, currentMonth, today.getDate() + 2, 19, 0),
-      type: "Apply",
-    },
-  ];
+  const fetchApplications = async () => {
+    setLoading(true);
 
-  const panelTypeMap: Record<PanelKey, EventType> = {
-    Deadlines: "Deadline",
-    Applications: "Apply",
-    Interviews: "Interview",
-    "Follow-Ups Due": "Follow-up",
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) {
+      setUserEmail(null);
+      setApplications([]);
+      setLoading(false);
+      return;
+    }
+
+    setUserEmail(user.email || null);
+
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      setApplications([]);
+    } else {
+      setApplications((data || []) as ApplicationItem[]);
+    }
+
+    setLoading(false);
   };
 
-  const stats = [
-    {
-      label: "Deadlines" as PanelKey,
-      value: String(events.filter((e) => e.type === "Deadline").length),
-      card: "bg-rose-50 border-rose-200 hover:bg-rose-100",
-      text: "text-rose-700",
-      subtext: "text-rose-500",
-    },
-    {
-      label: "Applications" as PanelKey,
-      value: String(events.filter((e) => e.type === "Apply").length),
-      card: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100",
-      text: "text-emerald-700",
-      subtext: "text-emerald-500",
-    },
-    {
-      label: "Interviews" as PanelKey,
-      value: String(events.filter((e) => e.type === "Interview").length),
-      card: "bg-violet-50 border-violet-200 hover:bg-violet-100",
-      text: "text-violet-700",
-      subtext: "text-violet-500",
-    },
-    {
-      label: "Follow-Ups Due" as PanelKey,
-      value: String(events.filter((e) => e.type === "Follow-up").length),
-      card: "bg-amber-50 border-amber-200 hover:bg-amber-100",
-      text: "text-amber-700",
-      subtext: "text-amber-500",
-    },
-  ];
+  useEffect(() => {
+    fetchApplications();
+  }, []);
 
-  const recommendedJobs = [
-    {
-      title: "Data Analyst Intern",
-      company: "Stripe",
-      meta: "Remote • $35/hr • Posted 2d ago",
-      match: "92%",
-      reason: "Matches your Python, stats, and analytics background.",
-      tag: "Best Fit",
-    },
-    {
-      title: "Business Analyst Intern",
-      company: "Google",
-      meta: "Mountain View • Hybrid • Posted 1d ago",
-      match: "88%",
-      reason: "Strong overlap with data storytelling and modeling skills.",
-      tag: "High Upside",
-    },
-    {
-      title: "Product Analyst",
-      company: "Notion",
-      meta: "San Francisco • Hybrid • Posted 3d ago",
-      match: "84%",
-      reason: "Fits your startup, user behavior, and experimentation interests.",
-      tag: "Stretch",
-    },
-  ];
+  const events: CalendarEvent[] = useMemo(() => {
+    return applications
+      .filter((app) => app.deadline)
+      .map((app) => {
+        let type: EventType = "Deadline";
 
-  const actions = [
-    "Follow up with Google today",
-    "Apply to 3 new roles this week",
-    "Prep for your interview tomorrow at 2:00 PM",
-    "Tailor your resume for analyst roles",
-  ];
+        if (app.status === "interview") type = "Interview";
+        else if (app.status === "applied") type = "Follow-up";
+        else if (app.status === "saved" || app.status === "applying")
+          type = "Application";
 
-  const pipeline = {
-    Saved: [
-      { id: 4, label: "Ramp — Growth Analyst" },
-      { id: 8, label: "Figma — Strategy Intern" },
-    ],
-    Applied: [
-      { id: 1, label: "Stripe — Data Analyst Intern" },
-      { id: 5, label: "Meta — Data Science Intern" },
-    ],
-    Interview: [
-      { id: 2, label: "Google — Business Analyst Intern" },
-      { id: 6, label: "Amazon — Business Analyst" },
-    ],
-    Offer: [{ id: 8, label: "Figma — Strategy Intern" }],
-  };
+        return {
+          id: app.id,
+          title:
+            type === "Interview"
+              ? `${app.company} interview`
+              : type === "Follow-up"
+              ? `Follow up with ${app.company}`
+              : type === "Application"
+              ? `Apply to ${app.company}`
+              : `${app.company} deadline`,
+          company: app.company,
+          role: app.role,
+          date: new Date(app.deadline as string),
+          type,
+        };
+      })
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [applications]);
+
+  const monthName = today.toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
 
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
   const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
@@ -230,22 +149,22 @@ export default function HomePage() {
         return "bg-amber-100 text-amber-700";
       case "Deadline":
         return "bg-rose-100 text-rose-700";
-      case "Apply":
+      case "Application":
         return "bg-emerald-100 text-emerald-700";
       default:
         return "bg-slate-100 text-slate-700";
     }
   };
 
-  const formatEventTime = (date: Date) =>
-    date.toLocaleString("en-US", {
-      weekday: "long",
+  const formatOnlyTime = (date: Date) =>
+    date.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
     });
 
-  const formatOnlyTime = (date: Date) =>
-    date.toLocaleTimeString("en-US", {
+  const formatEventTime = (date: Date) =>
+    date.toLocaleString("en-US", {
+      weekday: "long",
       hour: "numeric",
       minute: "2-digit",
     });
@@ -256,12 +175,8 @@ export default function HomePage() {
       if (!acc[day]) acc[day] = [];
       acc[day].push(event);
       return acc;
-    }, {} as Record<number, EventItem[]>);
+    }, {} as Record<number, CalendarEvent[]>);
   }, [events]);
-
-  const upcoming = [...events]
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .slice(0, 3);
 
   const nextFourDays = Array.from({ length: 4 }, (_, i) => {
     const date = new Date(today);
@@ -271,20 +186,63 @@ export default function HomePage() {
       .filter((event) => event.date.toDateString() === date.toDateString())
       .sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    return {
-      date,
-      events: dayEvents,
-    };
+    return { date, events: dayEvents };
   });
+
+  const stats = [
+    {
+      label: "Deadlines",
+      panel: "Deadline" as EventType,
+      value: String(events.filter((e) => e.type === "Deadline").length),
+      card: "bg-rose-50 border-rose-200 hover:bg-rose-100",
+      text: "text-rose-700",
+      subtext: "text-rose-500",
+    },
+    {
+      label: "Applications",
+      panel: "All Apps" as const,
+      value: String(applications.length),
+      card: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100",
+      text: "text-emerald-700",
+      subtext: "text-emerald-500",
+    },
+    {
+      label: "Interviews",
+      panel: "Interview" as EventType,
+      value: String(applications.filter((a) => a.status === "interview").length),
+      card: "bg-violet-50 border-violet-200 hover:bg-violet-100",
+      text: "text-violet-700",
+      subtext: "text-violet-500",
+    },
+    {
+      label: "Follow-Ups Due",
+      panel: "Follow-up" as EventType,
+      value: String(applications.filter((a) => a.status === "applied").length),
+      card: "bg-amber-50 border-amber-200 hover:bg-amber-100",
+      text: "text-amber-700",
+      subtext: "text-amber-500",
+    },
+  ];
 
   const selectedDayEvents =
     selectedDay !== null ? calendarEventsByDay[selectedDay] || [] : [];
 
-  const selectedPanelEvents = selectedPanel
-    ? events
-        .filter((event) => event.type === panelTypeMap[selectedPanel])
-        .sort((a, b) => a.date.getTime() - b.date.getTime())
-    : [];
+  const selectedPanelEvents =
+    selectedPanel === "All Apps"
+      ? applications.map((app) => ({
+          id: app.id,
+          title: app.company,
+          company: app.company,
+          role: app.role,
+          date: app.deadline ? new Date(app.deadline) : new Date(app.created_at),
+          type: "Application" as EventType,
+        }))
+      : selectedPanel
+      ? events.filter((event) => event.type === selectedPanel)
+      : [];
+
+  const upcoming = events.slice(0, 3);
+  const recentApplications = applications.slice(0, 3);
 
   const closeModals = () => {
     setSelectedDay(null);
@@ -304,20 +262,20 @@ export default function HomePage() {
 
           <nav className="px-4 py-6">
             <div className="space-y-1">
-            {nav.map((item) => (
-  <Link
-    key={item.label}
-    href={item.href}
-    className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-      pathname === item.href
-        ? "bg-indigo-50 text-indigo-700"
-        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-    }`}
-  >
-    <span className="mr-3 inline-block h-2.5 w-2.5 rounded-full bg-current opacity-60" />
-    {item.label}
-  </Link>
-))}
+              {nav.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
+                    pathname === item.href
+                      ? "bg-indigo-50 text-indigo-700"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="mr-3 inline-block h-2.5 w-2.5 rounded-full bg-current opacity-60" />
+                  {item.label}
+                </Link>
+              ))}
             </div>
           </nav>
 
@@ -343,7 +301,7 @@ export default function HomePage() {
                       {day.events.map((item) => (
                         <Link
                           key={item.id}
-                          href={`/applications/${item.id}`}
+                          href="/applications"
                           className="block rounded-2xl border border-slate-200 bg-slate-50 p-3 transition hover:bg-white hover:shadow-sm"
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -403,9 +361,12 @@ export default function HomePage() {
               </div>
 
               <div className="flex items-center gap-3">
-                <button className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
-                  Notifications
-                </button>
+                <Link
+                  href={userEmail ? "/applications" : "/login"}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                >
+                  {userEmail ? userEmail : "Log in"}
+                </Link>
 
                 <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white">
@@ -430,10 +391,14 @@ export default function HomePage() {
                   Good morning, Hanu
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">
-                Welcome back — glad to see you. Here’s what we’re focusing on today.
+                  Welcome back — glad to see you. Here’s what we’re focusing on
+                  today.
                 </p>
+
                 <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
-                Great news! Based on your background in statistics and Python, we found 12 high-fit roles to prioritize.</div>
+                  ✨ Based on your pipeline, Jobly is prioritizing your upcoming
+                  deadlines, interviews, and follow-ups.
+                </div>
               </div>
 
               <div className="flex gap-3">
@@ -452,11 +417,29 @@ export default function HomePage() {
               </div>
             </section>
 
+            {!userEmail && !loading && (
+              <div className="mb-8 rounded-3xl border border-indigo-200 bg-indigo-50 p-5">
+                <div className="text-sm font-semibold text-indigo-800">
+                  Log in to unlock your real dashboard
+                </div>
+                <p className="mt-1 text-sm text-indigo-700">
+                  Your dashboard will update with your saved applications,
+                  deadlines, interviews, and next actions.
+                </p>
+                <Link
+                  href="/login"
+                  className="mt-4 inline-flex rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white"
+                >
+                  Log in
+                </Link>
+              </div>
+            )}
+
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {stats.map((stat) => (
                 <button
                   key={stat.label}
-                  onClick={() => setSelectedPanel(stat.label)}
+                  onClick={() => setSelectedPanel(stat.panel)}
                   className={`rounded-3xl border p-5 text-left shadow-sm transition ${stat.card}`}
                 >
                   <div className={`text-sm font-medium ${stat.subtext}`}>
@@ -465,7 +448,7 @@ export default function HomePage() {
                   <div
                     className={`mt-3 text-3xl font-semibold tracking-tight ${stat.text}`}
                   >
-                    {stat.value}
+                    {loading ? "..." : stat.value}
                   </div>
                 </button>
               ))}
@@ -542,14 +525,14 @@ export default function HomePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-semibold tracking-tight">
-                      Recommended Jobs
+                      Recent Applications
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Personalized opportunities ranked for you
+                      Your latest saved roles from the database
                     </p>
                   </div>
                   <Link
-                    href="/discover"
+                    href="/applications"
                     className="text-sm font-semibold text-indigo-600"
                   >
                     View all
@@ -557,46 +540,50 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-5 space-y-4">
-                  {recommendedJobs.map((job) => (
-                    <div
-                      key={job.title}
-                      className="rounded-3xl border border-slate-200 p-5 transition hover:border-slate-300 hover:shadow-md"
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-semibold">{job.title}</h3>
-                            <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                              {job.tag}
-                            </span>
+                  {recentApplications.length > 0 ? (
+                    recentApplications.map((app) => (
+                      <div
+                        key={app.id}
+                        className="rounded-3xl border border-slate-200 p-5 transition hover:border-slate-300 hover:shadow-md"
+                      >
+                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-lg font-semibold">
+                                {app.role}
+                              </h3>
+                              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                                {app.status}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-sm font-medium text-slate-700">
+                              {app.company}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-500">
+                              {app.location || "No location"}{" "}
+                              {app.deadline
+                                ? `• Deadline ${new Date(
+                                    app.deadline
+                                  ).toLocaleDateString()}`
+                                : ""}
+                            </div>
                           </div>
-                          <div className="mt-1 text-sm font-medium text-slate-700">
-                            {job.company}
-                          </div>
-                          <div className="mt-1 text-sm text-slate-500">
-                            {job.meta}
-                          </div>
-                          <p className="mt-3 text-sm text-slate-600">
-                            {job.reason}
-                          </p>
-                        </div>
 
-                        <div className="flex min-w-[120px] flex-col items-start gap-3 md:items-end">
-                          <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
-                            Match {job.match}
-                          </div>
-                          <div className="flex gap-2">
-                            <button className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
-                              Save
-                            </button>
-                            <button className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white">
-                              Track
-                            </button>
-                          </div>
+                          <Link
+                            href="/applications"
+                            className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                          >
+                            Open
+                          </Link>
                         </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                      No applications yet. Add your first application to see it
+                      here.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 
@@ -610,36 +597,43 @@ export default function HomePage() {
                   </p>
 
                   <div className="mt-5 space-y-3">
-                    {actions.map((action, idx) => (
-                      <div
-                        key={action}
-                        className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4"
-                      >
-                        <div
-                          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
-                            idx === 0
-                              ? "bg-rose-100 text-rose-600"
-                              : idx === 1
-                              ? "bg-amber-100 text-amber-600"
-                              : idx === 2
-                              ? "bg-violet-100 text-violet-600"
-                              : "bg-emerald-100 text-emerald-600"
-                          }`}
+                    {events.length > 0 ? (
+                      events.slice(0, 4).map((event, idx) => (
+                        <Link
+                          key={event.id}
+                          href="/applications"
+                          className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 transition hover:bg-slate-100"
                         >
-                          {idx + 1}
-                        </div>
+                          <div
+                            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
+                              event.type === "Deadline"
+                                ? "bg-rose-100 text-rose-600"
+                                : event.type === "Follow-up"
+                                ? "bg-amber-100 text-amber-600"
+                                : event.type === "Interview"
+                                ? "bg-violet-100 text-violet-600"
+                                : "bg-emerald-100 text-emerald-600"
+                            }`}
+                          >
+                            {idx + 1}
+                          </div>
 
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">
-                            {action}
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">
+                              {event.title}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-500">
+                              {event.company} • {formatEventTime(event.date)}
+                            </div>
                           </div>
-                          <div className="mt-1 text-sm text-slate-500">
-                            Recommended based on your timeline and application
-                            activity.
-                          </div>
-                        </div>
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                        Add deadlines to your applications and Jobly will turn
+                        them into next actions.
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -648,36 +642,46 @@ export default function HomePage() {
                     <h2 className="text-xl font-semibold tracking-tight">
                       Upcoming
                     </h2>
-                    <button className="text-sm font-semibold text-indigo-600">
+                    <Link
+                      href="/calendar"
+                      className="text-sm font-semibold text-indigo-600"
+                    >
                       Calendar
-                    </button>
+                    </Link>
                   </div>
 
                   <div className="mt-5 space-y-3">
-                    {upcoming.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-2xl border border-slate-200 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-semibold">
-                              {item.title}
+                    {upcoming.length > 0 ? (
+                      upcoming.map((item) => (
+                        <Link
+                          key={item.id}
+                          href="/applications"
+                          className="block rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold">
+                                {item.title}
+                              </div>
+                              <div className="mt-1 text-sm text-slate-500">
+                                {formatEventTime(item.date)}
+                              </div>
                             </div>
-                            <div className="mt-1 text-sm text-slate-500">
-                              {formatEventTime(item.date)}
-                            </div>
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${getEventColor(
+                                item.type
+                              )}`}
+                            >
+                              {item.type}
+                            </span>
                           </div>
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${getEventColor(
-                              item.type
-                            )}`}
-                          >
-                            {item.type}
-                          </span>
-                        </div>
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-400">
+                        No upcoming deadlines yet
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
@@ -703,27 +707,41 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {Object.entries(pipeline).map(([column, items]) => (
-                    <div key={column} className="rounded-2xl bg-slate-50 p-4">
+                  {[
+                    ["Saved", applications.filter((a) => a.status === "saved")],
+                    ["Applied", applications.filter((a) => a.status === "applied")],
+                    [
+                      "Interview",
+                      applications.filter((a) => a.status === "interview"),
+                    ],
+                    ["Offer", applications.filter((a) => a.status === "offer")],
+                  ].map(([column, items]) => (
+                    <div key={column as string} className="rounded-2xl bg-slate-50 p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <div className="text-sm font-semibold text-slate-900">
-                          {column}
+                          {column as string}
                         </div>
                         <div className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
-                          {items.length}
+                          {(items as ApplicationItem[]).length}
                         </div>
                       </div>
 
                       <div className="space-y-3">
-                        {items.map((item) => (
+                        {(items as ApplicationItem[]).slice(0, 2).map((item) => (
                           <Link
                             key={item.id}
-                            href={`/applications/${item.id}`}
+                            href="/applications"
                             className="block rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                           >
-                            {item.label}
+                            {item.company} — {item.role}
                           </Link>
                         ))}
+
+                        {(items as ApplicationItem[]).length === 0 && (
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-3 text-sm text-slate-400">
+                            Empty
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -731,23 +749,47 @@ export default function HomePage() {
               </div>
 
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold tracking-tight">
-                      Weekly Momentum
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      A simple analytics snapshot
-                    </p>
-                  </div>
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight">
+                    Weekly Momentum
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    A simple analytics snapshot
+                  </p>
                 </div>
 
                 <div className="mt-6 space-y-5">
                   {[
-                    { label: "Applications sent", value: "8", width: "72%" },
-                    { label: "Response rate", value: "31%", width: "31%" },
-                    { label: "Interview rate", value: "12%", width: "12%" },
-                    { label: "Follow-ups completed", value: "4", width: "48%" },
+                    {
+                      label: "Applications saved",
+                      value: applications.length,
+                      width: `${Math.min(applications.length * 15, 100)}%`,
+                    },
+                    {
+                      label: "Upcoming deadlines",
+                      value: events.length,
+                      width: `${Math.min(events.length * 20, 100)}%`,
+                    },
+                    {
+                      label: "Interviews",
+                      value: applications.filter((a) => a.status === "interview")
+                        .length,
+                      width: `${Math.min(
+                        applications.filter((a) => a.status === "interview")
+                          .length * 25,
+                        100
+                      )}%`,
+                    },
+                    {
+                      label: "Offers",
+                      value: applications.filter((a) => a.status === "offer")
+                        .length,
+                      width: `${Math.min(
+                        applications.filter((a) => a.status === "offer").length *
+                          30,
+                        100
+                      )}%`,
+                    },
                   ].map((metric) => (
                     <div key={metric.label}>
                       <div className="mb-2 flex items-center justify-between text-sm">
@@ -813,9 +855,10 @@ export default function HomePage() {
                 {(selectedDay !== null ? selectedDayEvents : selectedPanelEvents)
                   .sort((a, b) => a.date.getTime() - b.date.getTime())
                   .map((event) => (
-                    <div
+                    <Link
                       key={event.id}
-                      className="rounded-2xl border border-slate-200 p-4"
+                      href="/applications"
+                      className="block rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
                     >
                       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div>
@@ -845,14 +888,11 @@ export default function HomePage() {
                           </div>
                         </div>
 
-                        <Link
-                          href={`/applications/${event.id}`}
-                          className="inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-200"
-                        >
-                          Open Application
-                        </Link>
+                        <div className="inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-200">
+                          Open Applications
+                        </div>
                       </div>
-                    </div>
+                    </Link>
                   ))}
               </div>
             </div>
