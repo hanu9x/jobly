@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import Link from "next/link";
-import { useState } from "react";
 
 const initialSkills = [
   "Python",
