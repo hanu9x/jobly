@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { supabase } from "../lib/supabase";
 
 type ApplicationStatus =
   | "Saved"
@@ -145,6 +146,10 @@ function getStatusStyles(status: ApplicationStatus) {
 
 export default function ApplicationsPage() {
   const [view, setView] = useState<"board" | "table">("board");
+  const [company, setCompany] = useState("");
+  const [role, setRole] = useState("");
+  const [location, setLocation] = useState("");
+  const [deadline, setDeadline] = useState("");
 
   const grouped = useMemo(() => {
     return columns.reduce((acc, column) => {
@@ -152,6 +157,39 @@ export default function ApplicationsPage() {
       return acc;
     }, {} as Record<ApplicationStatus, ApplicationItem[]>);
   }, []);
+
+  const addApplication = async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) {
+      alert("You must be logged in first. Next step: we add login.");
+      return;
+    }
+
+    const { error } = await supabase.from("applications").insert([
+      {
+        user_id: user.id,
+        company,
+        role,
+        location,
+        deadline: deadline || null,
+        status: "saved",
+      },
+    ]);
+
+    if (error) {
+      console.error(error);
+      alert("Error adding application.");
+      return;
+    }
+
+    alert("Application added!");
+    setCompany("");
+    setRole("");
+    setLocation("");
+    setDeadline("");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -177,17 +215,68 @@ export default function ApplicationsPage() {
             >
               Back to Dashboard
             </Link>
-            <button className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-200">
-              Add Application
-            </button>
+            <Link
+              href="/discover"
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
+            >
+              AI Matches
+            </Link>
           </div>
+        </div>
+
+        <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-semibold tracking-tight">
+            Add Application
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            This is the first real database-connected action. Login comes next.
+          </p>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <input
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              placeholder="Company"
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-300"
+            />
+
+            <input
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              placeholder="Role"
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-300"
+            />
+
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Location"
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-300"
+            />
+
+            <input
+              type="datetime-local"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-300"
+            />
+          </div>
+
+          <button
+            onClick={addApplication}
+            className="mt-4 rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-200"
+          >
+            Add to Database
+          </button>
         </div>
 
         <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
           <div className="grid gap-4 sm:grid-cols-3 md:w-[520px]">
             <div className="rounded-2xl bg-slate-50 p-4">
               <div className="text-sm text-slate-500">Total Applications</div>
-              <div className="mt-2 text-2xl font-semibold">{applications.length}</div>
+              <div className="mt-2 text-2xl font-semibold">
+                {applications.length}
+              </div>
             </div>
             <div className="rounded-2xl bg-violet-50 p-4">
               <div className="text-sm text-violet-500">Interviews</div>
@@ -235,7 +324,9 @@ export default function ApplicationsPage() {
                 className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
               >
                 <div className="mb-4 flex items-center justify-between">
-                  <div className="text-sm font-semibold text-slate-900">{column}</div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    {column}
+                  </div>
                   <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
                     {grouped[column].length}
                   </div>
@@ -251,8 +342,12 @@ export default function ApplicationsPage() {
                       <div className="text-sm font-semibold text-slate-900">
                         {app.company}
                       </div>
-                      <div className="mt-1 text-sm text-slate-600">{app.role}</div>
-                      <div className="mt-3 text-xs text-slate-500">{app.location}</div>
+                      <div className="mt-1 text-sm text-slate-600">
+                        {app.role}
+                      </div>
+                      <div className="mt-3 text-xs text-slate-500">
+                        {app.location}
+                      </div>
                       <div className="mt-3 text-xs font-medium text-slate-500">
                         {app.nextAction}
                       </div>
@@ -306,9 +401,15 @@ export default function ApplicationsPage() {
                           {app.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-500">{app.appliedDate}</td>
-                      <td className="px-6 py-4 text-slate-500">{app.recruiter}</td>
-                      <td className="px-6 py-4 text-slate-600">{app.nextAction}</td>
+                      <td className="px-6 py-4 text-slate-500">
+                        {app.appliedDate}
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">
+                        {app.recruiter}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {app.nextAction}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
