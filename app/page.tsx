@@ -20,11 +20,12 @@ type ApplicationItem = {
   location: string | null;
   status: ApplicationStatus;
   deadline: string | null;
-  notes: string | null;
   created_at: string;
+  notes?: string | null;
 };
 
 type EventType = "Deadline" | "Application" | "Interview" | "Follow-up";
+type PanelType = "Deadlines" | "Applications" | "Interviews" | "Follow-Ups Due";
 
 type CalendarEvent = {
   id: string;
@@ -41,9 +42,7 @@ export default function HomePage() {
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [selectedPanel, setSelectedPanel] = useState<EventType | "All Apps" | null>(
-    null
-  );
+  const [selectedPanel, setSelectedPanel] = useState<PanelType | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const today = new Date();
@@ -102,8 +101,9 @@ export default function HomePage() {
 
         if (app.status === "interview") type = "Interview";
         else if (app.status === "applied") type = "Follow-up";
-        else if (app.status === "saved" || app.status === "applying")
+        else if (app.status === "saved" || app.status === "applying") {
           type = "Application";
+        }
 
         return {
           id: app.id,
@@ -156,6 +156,26 @@ export default function HomePage() {
     }
   };
 
+  const getStatusColor = (status: ApplicationStatus) => {
+    switch (status) {
+      case "interview":
+        return "bg-violet-100 text-violet-700";
+      case "applied":
+        return "bg-blue-100 text-blue-700";
+      case "offer":
+        return "bg-amber-100 text-amber-700";
+      case "rejected":
+        return "bg-rose-100 text-rose-700";
+      case "applying":
+        return "bg-emerald-100 text-emerald-700";
+      default:
+        return "bg-slate-100 text-slate-700";
+    }
+  };
+
+  const formatStatus = (status: ApplicationStatus) =>
+    status.charAt(0).toUpperCase() + status.slice(1);
+
   const formatOnlyTime = (date: Date) =>
     date.toLocaleTimeString("en-US", {
       hour: "numeric",
@@ -189,56 +209,57 @@ export default function HomePage() {
     return { date, events: dayEvents };
   });
 
+  const deadlineApps = applications.filter((app) => app.deadline);
+  const interviewApps = applications.filter((app) => app.status === "interview");
+  const followUpApps = applications.filter((app) => app.status === "applied");
+
   const stats = [
     {
-      label: "Deadlines",
-      panel: "Deadline" as EventType,
-      value: String(events.filter((e) => e.type === "Deadline").length),
+      label: "Deadlines" as PanelType,
+      value: String(deadlineApps.length),
       card: "bg-rose-50 border-rose-200 hover:bg-rose-100",
       text: "text-rose-700",
       subtext: "text-rose-500",
+      description: "Apps with deadlines",
     },
     {
-      label: "Applications",
-      panel: "All Apps" as const,
+      label: "Applications" as PanelType,
       value: String(applications.length),
       card: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100",
       text: "text-emerald-700",
       subtext: "text-emerald-500",
+      description: "All tracked roles",
     },
     {
-      label: "Interviews",
-      panel: "Interview" as EventType,
-      value: String(applications.filter((a) => a.status === "interview").length),
+      label: "Interviews" as PanelType,
+      value: String(interviewApps.length),
       card: "bg-violet-50 border-violet-200 hover:bg-violet-100",
       text: "text-violet-700",
       subtext: "text-violet-500",
+      description: "Interview stage",
     },
     {
-      label: "Follow-Ups Due",
-      panel: "Follow-up" as EventType,
-      value: String(applications.filter((a) => a.status === "applied").length),
+      label: "Follow-Ups Due" as PanelType,
+      value: String(followUpApps.length),
       card: "bg-amber-50 border-amber-200 hover:bg-amber-100",
       text: "text-amber-700",
       subtext: "text-amber-500",
+      description: "Applied roles",
     },
   ];
 
   const selectedDayEvents =
     selectedDay !== null ? calendarEventsByDay[selectedDay] || [] : [];
 
-  const selectedPanelEvents =
-    selectedPanel === "All Apps"
-      ? applications.map((app) => ({
-          id: app.id,
-          title: app.company,
-          company: app.company,
-          role: app.role,
-          date: app.deadline ? new Date(app.deadline) : new Date(app.created_at),
-          type: "Application" as EventType,
-        }))
-      : selectedPanel
-      ? events.filter((event) => event.type === selectedPanel)
+  const selectedPanelApplications =
+    selectedPanel === "Deadlines"
+      ? deadlineApps
+      : selectedPanel === "Applications"
+      ? applications
+      : selectedPanel === "Interviews"
+      ? interviewApps
+      : selectedPanel === "Follow-Ups Due"
+      ? followUpApps
       : [];
 
   const upcoming = events.slice(0, 3);
@@ -406,7 +427,7 @@ export default function HomePage() {
                   href="/discover"
                   className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
                 >
-                  Discover Jobs
+                  Discover
                 </Link>
                 <Link
                   href="/applications"
@@ -439,7 +460,7 @@ export default function HomePage() {
               {stats.map((stat) => (
                 <button
                   key={stat.label}
-                  onClick={() => setSelectedPanel(stat.panel)}
+                  onClick={() => setSelectedPanel(stat.label)}
                   className={`rounded-3xl border p-5 text-left shadow-sm transition ${stat.card}`}
                 >
                   <div className={`text-sm font-medium ${stat.subtext}`}>
@@ -449,6 +470,9 @@ export default function HomePage() {
                     className={`mt-3 text-3xl font-semibold tracking-tight ${stat.text}`}
                   >
                     {loading ? "..." : stat.value}
+                  </div>
+                  <div className={`mt-2 text-xs font-medium ${stat.subtext}`}>
+                    {stat.description}
                   </div>
                 </button>
               ))}
@@ -552,8 +576,12 @@ export default function HomePage() {
                               <h3 className="text-lg font-semibold">
                                 {app.role}
                               </h3>
-                              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                                {app.status}
+                              <span
+                                className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(
+                                  app.status
+                                )}`}
+                              >
+                                {formatStatus(app.status)}
                               </span>
                             </div>
                             <div className="mt-1 text-sm font-medium text-slate-700">
@@ -686,129 +714,6 @@ export default function HomePage() {
                 </div>
               </div>
             </section>
-
-            <section className="mt-8 grid gap-6 xl:grid-cols-[1.15fr_1fr]">
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold tracking-tight">
-                      Application Pipeline
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      A quick view of where everything stands
-                    </p>
-                  </div>
-                  <Link
-                    href="/applications"
-                    className="text-sm font-semibold text-indigo-600"
-                  >
-                    Open board
-                  </Link>
-                </div>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {[
-                    ["Saved", applications.filter((a) => a.status === "saved")],
-                    ["Applied", applications.filter((a) => a.status === "applied")],
-                    [
-                      "Interview",
-                      applications.filter((a) => a.status === "interview"),
-                    ],
-                    ["Offer", applications.filter((a) => a.status === "offer")],
-                  ].map(([column, items]) => (
-                    <div key={column as string} className="rounded-2xl bg-slate-50 p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="text-sm font-semibold text-slate-900">
-                          {column as string}
-                        </div>
-                        <div className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
-                          {(items as ApplicationItem[]).length}
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        {(items as ApplicationItem[]).slice(0, 2).map((item) => (
-                          <Link
-                            key={item.id}
-                            href="/applications"
-                            className="block rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                          >
-                            {item.company} — {item.role}
-                          </Link>
-                        ))}
-
-                        {(items as ApplicationItem[]).length === 0 && (
-                          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-3 text-sm text-slate-400">
-                            Empty
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div>
-                  <h2 className="text-xl font-semibold tracking-tight">
-                    Weekly Momentum
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    A simple analytics snapshot
-                  </p>
-                </div>
-
-                <div className="mt-6 space-y-5">
-                  {[
-                    {
-                      label: "Applications saved",
-                      value: applications.length,
-                      width: `${Math.min(applications.length * 15, 100)}%`,
-                    },
-                    {
-                      label: "Upcoming deadlines",
-                      value: events.length,
-                      width: `${Math.min(events.length * 20, 100)}%`,
-                    },
-                    {
-                      label: "Interviews",
-                      value: applications.filter((a) => a.status === "interview")
-                        .length,
-                      width: `${Math.min(
-                        applications.filter((a) => a.status === "interview")
-                          .length * 25,
-                        100
-                      )}%`,
-                    },
-                    {
-                      label: "Offers",
-                      value: applications.filter((a) => a.status === "offer")
-                        .length,
-                      width: `${Math.min(
-                        applications.filter((a) => a.status === "offer").length *
-                          30,
-                        100
-                      )}%`,
-                    },
-                  ].map((metric) => (
-                    <div key={metric.label}>
-                      <div className="mb-2 flex items-center justify-between text-sm">
-                        <span className="font-medium text-slate-700">
-                          {metric.label}
-                        </span>
-                        <span className="text-slate-500">{metric.value}</span>
-                      </div>
-                      <div className="h-3 rounded-full bg-slate-100">
-                        <div
-                          className="h-3 rounded-full bg-indigo-600"
-                          style={{ width: metric.width }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
           </div>
         </main>
       </div>
@@ -834,9 +739,11 @@ export default function HomePage() {
                       {selectedPanel}
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
-                      {selectedPanelEvents.length}{" "}
-                      {selectedPanelEvents.length === 1 ? "item" : "items"} in this
-                      category
+                      {selectedPanelApplications.length}{" "}
+                      {selectedPanelApplications.length === 1
+                        ? "application"
+                        : "applications"}{" "}
+                      found
                     </p>
                   </>
                 ) : null}
@@ -851,50 +758,102 @@ export default function HomePage() {
             </div>
 
             <div className="max-h-[60vh] overflow-y-auto px-6 py-5">
-              <div className="space-y-4">
-                {(selectedDay !== null ? selectedDayEvents : selectedPanelEvents)
-                  .sort((a, b) => a.date.getTime() - b.date.getTime())
-                  .map((event) => (
-                    <Link
-                      key={event.id}
-                      href="/applications"
-                      className="block rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-base font-semibold text-slate-900">
-                              {event.title}
+              {selectedDay !== null ? (
+                <div className="space-y-4">
+                  {selectedDayEvents
+                    .sort((a, b) => a.date.getTime() - b.date.getTime())
+                    .map((event) => (
+                      <Link
+                        key={event.id}
+                        href="/applications"
+                        className="block rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
+                      >
+                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-base font-semibold text-slate-900">
+                                {event.title}
+                              </div>
+                              <span
+                                className={`rounded-full px-3 py-1 text-xs font-semibold ${getEventColor(
+                                  event.type
+                                )}`}
+                              >
+                                {event.type}
+                              </span>
                             </div>
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${getEventColor(
-                                event.type
-                              )}`}
-                            >
-                              {event.type}
-                            </span>
+
+                            <div className="mt-2 text-sm font-medium text-slate-700">
+                              {event.company} • {event.role}
+                            </div>
+
+                            <div className="mt-1 text-sm text-slate-500">
+                              {event.date.toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}{" "}
+                              • {formatOnlyTime(event.date)}
+                            </div>
                           </div>
 
-                          <div className="mt-2 text-sm font-medium text-slate-700">
-                            {event.company} • {event.role}
-                          </div>
-
-                          <div className="mt-1 text-sm text-slate-500">
-                            {event.date.toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                            })}{" "}
-                            • {formatOnlyTime(event.date)}
+                          <div className="inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-200">
+                            Open Applications
                           </div>
                         </div>
+                      </Link>
+                    ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {selectedPanelApplications.length > 0 ? (
+                    selectedPanelApplications.map((app) => (
+                      <Link
+                        key={app.id}
+                        href="/applications"
+                        className="block rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
+                      >
+                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-base font-semibold text-slate-900">
+                                {app.company}
+                              </div>
+                              <span
+                                className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(
+                                  app.status
+                                )}`}
+                              >
+                                {formatStatus(app.status)}
+                              </span>
+                            </div>
 
-                        <div className="inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-200">
-                          Open Applications
+                            <div className="mt-2 text-sm font-medium text-slate-700">
+                              {app.role}
+                            </div>
+
+                            <div className="mt-1 text-sm text-slate-500">
+                              {app.location || "No location"}
+                              {app.deadline
+                                ? ` • Deadline ${new Date(
+                                    app.deadline
+                                  ).toLocaleDateString()}`
+                                : ""}
+                            </div>
+                          </div>
+
+                          <div className="inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-200">
+                            Open Applications
+                          </div>
                         </div>
-                      </div>
-                    </Link>
-                  ))}
-              </div>
+                      </Link>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">
+                      Nothing here yet.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

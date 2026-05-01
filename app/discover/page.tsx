@@ -27,6 +27,14 @@ type Profile = {
   target_roles: string[];
 };
 
+const boards = [
+  { name: "stripe", company: "Stripe" },
+  { name: "notion", company: "Notion" },
+  { name: "airbnb", company: "Airbnb" },
+  { name: "ramp", company: "Ramp" },
+  { name: "databricks", company: "Databricks" },
+];
+
 const SKILL_KEYWORDS = [
   "Python",
   "SQL",
@@ -70,6 +78,10 @@ function extractKeywords(text: string, keywords: string[]) {
 
 function normalize(value: string) {
   return value.toLowerCase().trim();
+}
+
+function getJobKey(job: { company: string; title: string }) {
+  return `${job.company.toLowerCase()}-${job.title.toLowerCase()}`;
 }
 
 function getJobType(score: number): JobType {
@@ -146,48 +158,70 @@ export default function DiscoverPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [realJobs, setRealJobs] = useState<Job[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
+  const [trackedKeys, setTrackedKeys] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchJobs = async () => {
       setLoadingJobs(true);
 
       try {
-        const res = await fetch(
-          "https://boards-api.greenhouse.io/v1/boards/stripe/jobs?content=true"
-        );
-        const data = await res.json();
+        const allJobs: Job[] = [];
 
-        const formatted: Job[] = data.jobs.slice(0, 25).map((job: any) => {
-          const cleanContent = stripHtml(job.content || "");
-          const extractedSkills = extractKeywords(cleanContent, SKILL_KEYWORDS);
-          const extractedInterests = extractKeywords(
-            `${job.title} ${cleanContent}`,
-            INTEREST_KEYWORDS
-          );
+        for (const board of boards) {
+          try {
+            const res = await fetch(
+              `https://boards-api.greenhouse.io/v1/boards/${board.name}/jobs?content=true`
+            );
 
-          return {
-            id: job.id,
-            title: job.title,
-            company: "Stripe",
-            location: job.location?.name || "Unknown",
-            salary: "Not listed",
-            type: "Stretch",
-            reason:
-              extractedSkills.length > 0
-                ? `Detected real signals from the job description: ${extractedSkills
-                    .slice(0, 4)
-                    .join(", ")}.`
-                : "Live role pulled from Stripe's public job board.",
-            skills:
-              extractedSkills.length > 0 ? extractedSkills : ["General"],
-            interests:
-              extractedInterests.length > 0 ? extractedInterests : ["General"],
-            posted: "Live",
-            content: cleanContent,
-          };
-        });
+            if (!res.ok) continue;
 
-        setRealJobs(formatted);
+            const data = await res.json();
+
+            const formatted: Job[] = (data.jobs || [])
+              .slice(0, 15)
+              .map((job: any) => {
+                const cleanContent = stripHtml(job.content || "");
+                const extractedSkills = extractKeywords(
+                  cleanContent,
+                  SKILL_KEYWORDS
+                );
+
+                const extractedInterests = extractKeywords(
+                  `${job.title} ${cleanContent}`,
+                  INTEREST_KEYWORDS
+                );
+
+                return {
+                  id: job.id,
+                  title: job.title,
+                  company: board.company,
+                  location: job.location?.name || "Unknown",
+                  salary: "Not listed",
+                  type: "Stretch",
+                  reason:
+                    extractedSkills.length > 0
+                      ? `Detected real signals: ${extractedSkills
+                          .slice(0, 4)
+                          .join(", ")}.`
+                      : "Live job from company career board.",
+                  skills:
+                    extractedSkills.length > 0 ? extractedSkills : ["General"],
+                  interests:
+                    extractedInterests.length > 0
+                      ? extractedInterests
+                      : ["General"],
+                  posted: "Live",
+                  content: cleanContent,
+                };
+              });
+
+            allJobs.push(...formatted);
+          } catch (err) {
+            console.log(`Failed ${board.company}`, err);
+          }
+        }
+
+        setRealJobs(allJobs);
       } catch (err) {
         console.error(err);
       }
@@ -199,7 +233,7 @@ export default function DiscoverPage() {
   }, []);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfileAndTrackedJobs = async () => {
       setLoadingProfile(true);
 
       const { data: userData } = await supabase.auth.getUser();
@@ -207,27 +241,44 @@ export default function DiscoverPage() {
 
       if (!user) {
         setProfile(null);
+        setTrackedKeys([]);
         setLoadingProfile(false);
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("skills, interests, preferred_locations, target_roles")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (error) {
-        console.error(error);
+      if (profileError) {
+        console.error(profileError);
         setProfile(null);
-      } else if (data) {
-        setProfile(data as Profile);
+      } else if (profileData) {
+        setProfile(profileData as Profile);
+      }
+
+      const { data: appData, error: appError } = await supabase
+        .from("applications")
+        .select("company, role")
+        .eq("user_id", user.id);
+
+      if (appError) {
+        console.error(appError);
+        setTrackedKeys([]);
+      } else {
+        setTrackedKeys(
+          (appData || []).map((app) =>
+            getJobKey({ company: app.company, title: app.role })
+          )
+        );
       }
 
       setLoadingProfile(false);
     };
 
-    fetchProfile();
+    fetchProfileAndTrackedJobs();
   }, []);
 
   const rankedJobs = useMemo(() => {
@@ -238,10 +289,11 @@ export default function DiscoverPage() {
           ...job,
           match,
           type: getJobType(match),
+          tracked: trackedKeys.includes(getJobKey(job)),
         };
       })
       .sort((a, b) => b.match - a.match);
-  }, [profile, realJobs]);
+  }, [profile, realJobs, trackedKeys]);
 
   const filteredJobs = useMemo(() => {
     return rankedJobs.filter((job) => {
@@ -259,7 +311,11 @@ export default function DiscoverPage() {
     });
   }, [selectedType, query, rankedJobs]);
 
-  const trackJob = async (job: Job & { match: number }) => {
+  const trackJob = async (job: Job & { match: number; tracked: boolean }) => {
+    const jobKey = getJobKey(job);
+
+    if (trackedKeys.includes(jobKey)) return;
+
     setSavingJobId(job.id);
 
     const { data: userData } = await supabase.auth.getUser();
@@ -267,7 +323,6 @@ export default function DiscoverPage() {
 
     if (!user) {
       setSavingJobId(null);
-      alert("Please log in first.");
       window.location.href = "/login";
       return;
     }
@@ -293,8 +348,7 @@ export default function DiscoverPage() {
       return;
     }
 
-    alert(`${job.company} saved to your applications.`);
-    window.location.href = "/applications";
+    setTrackedKeys((prev) => [...prev, jobKey]);
   };
 
   return (
@@ -309,7 +363,8 @@ export default function DiscoverPage() {
               Personalized job matches
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              Live jobs ranked with real signals extracted from job descriptions.
+              Live jobs from multiple company career boards ranked with your
+              profile.
             </p>
           </div>
 
@@ -342,13 +397,13 @@ export default function DiscoverPage() {
             {loadingJobs || loadingProfile
               ? "Loading live jobs and your match profile..."
               : profile
-              ? "Real job matching is active."
+              ? "Real multi-company matching is active."
               : "Live jobs loaded. Create a profile for personalization."}
           </div>
           <p className="mt-1 text-sm text-indigo-700">
             {profile
-              ? `Using ${profile.skills.length} skills, ${profile.target_roles.length} target roles, and ${profile.interests.length} interests to rank live jobs.`
-              : "Jobly is pulling live jobs now. Add a profile to improve ranking."}
+              ? `Using ${profile.skills.length} skills, ${profile.target_roles.length} target roles, and ${profile.interests.length} interests to rank ${realJobs.length} live jobs.`
+              : `Jobly loaded ${realJobs.length} live jobs. Add a profile to improve ranking.`}
           </p>
         </div>
 
@@ -387,7 +442,7 @@ export default function DiscoverPage() {
           ) : (
             filteredJobs.map((job) => (
               <div
-                key={job.id}
+                key={`${job.company}-${job.id}`}
                 className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
               >
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -401,6 +456,11 @@ export default function DiscoverPage() {
                       >
                         {job.type}
                       </span>
+                      {job.tracked && (
+                        <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
+                          Tracked
+                        </span>
+                      )}
                     </div>
 
                     <div className="mt-1 text-sm text-slate-600">
@@ -408,14 +468,12 @@ export default function DiscoverPage() {
                       {job.posted}
                     </div>
 
-                    <p className="mt-3 text-sm text-slate-500">
-                      {job.reason}
-                    </p>
+                    <p className="mt-3 text-sm text-slate-500">{job.reason}</p>
 
                     <div className="mt-4 flex flex-wrap gap-2">
                       {job.skills.slice(0, 8).map((skill) => (
                         <span
-                          key={skill}
+                          key={`${job.id}-${skill}`}
                           className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
                         >
                           {skill}
@@ -439,12 +497,29 @@ export default function DiscoverPage() {
 
                       <button
                         onClick={() => trackJob(job)}
-                        disabled={savingJobId === job.id}
-                        className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                        disabled={savingJobId === job.id || job.tracked}
+                        className={`rounded-xl px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed ${
+                          job.tracked
+                            ? "bg-slate-200 text-slate-500"
+                            : "bg-indigo-600 text-white disabled:opacity-60"
+                        }`}
                       >
-                        {savingJobId === job.id ? "Tracking..." : "Track Job"}
+                        {savingJobId === job.id
+                          ? "Tracking..."
+                          : job.tracked
+                          ? "Tracked"
+                          : "Track Job"}
                       </button>
                     </div>
+
+                    {job.tracked && (
+                      <Link
+                        href="/applications"
+                        className="mt-3 inline-block text-sm font-semibold text-indigo-600"
+                      >
+                        View in Applications →
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>
