@@ -339,7 +339,8 @@ export default function DiscoverPage() {
         status: "saved",
         notes: `${job.reason} Match score: ${job.match}%. Extracted skills: ${job.skills.join(
           ", "
-        )}. Apply link: ${job.applyUrl}`,
+        )}.`,
+        apply_url: job.applyUrl,
       },
     ]);
 

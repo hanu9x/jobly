@@ -12,16 +12,17 @@ type ApplicationStatus =
   | "offer"
   | "rejected";
 
-type ApplicationItem = {
-  id: string;
-  company: string;
-  role: string;
-  location: string | null;
-  status: ApplicationStatus;
-  deadline: string | null;
-  notes: string | null;
-  created_at: string;
-};
+  type ApplicationItem = {
+    id: string;
+    company: string;
+    role: string;
+    location: string | null;
+    status: ApplicationStatus;
+    deadline: string | null;
+    notes: string | null;
+    apply_url: string | null;
+    created_at: string;
+  };
 
 const columns: ApplicationStatus[] = [
   "saved",
@@ -57,6 +58,7 @@ export default function ApplicationsPage() {
   const [view, setView] = useState<"board" | "table">("board");
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
@@ -142,6 +144,29 @@ export default function ApplicationsPage() {
     await fetchApplications();
   };
 
+  const updateStatus = async (id: string, status: ApplicationStatus) => {
+    setUpdatingId(id);
+
+    const previousApplications = applications;
+
+    setApplications((current) =>
+      current.map((app) => (app.id === id ? { ...app, status } : app))
+    );
+
+    const { error } = await supabase
+      .from("applications")
+      .update({ status })
+      .eq("id", id);
+
+    setUpdatingId(null);
+
+    if (error) {
+      console.error(error);
+      setApplications(previousApplications);
+      alert("Error updating status.");
+    }
+  };
+
   const deleteApplication = async (id: string) => {
     const { error } = await supabase.from("applications").delete().eq("id", id);
 
@@ -183,7 +208,7 @@ export default function ApplicationsPage() {
               href="/discover"
               className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
             >
-              AI Matches
+              Discover
             </Link>
 
             <Link
@@ -346,12 +371,47 @@ export default function ApplicationsPage() {
                           : "No deadline"}
                       </div>
 
-                      <button
-                        onClick={() => deleteApplication(app.id)}
-                        className="mt-4 text-xs font-semibold text-rose-600"
+                      <select
+                        value={app.status}
+                        disabled={updatingId === app.id}
+                        onChange={(e) =>
+                          updateStatus(
+                            app.id,
+                            e.target.value as ApplicationStatus
+                          )
+                        }
+                        className={`mt-4 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none ${getStatusStyles(
+                          app.status
+                        )}`}
                       >
-                        Delete
-                      </button>
+                        {columns.map((status) => (
+                          <option key={status} value={status}>
+                            {formatStatus(status)}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        {app.apply_url ? (
+                          <a
+                            href={app.apply_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-semibold text-indigo-600"
+                          >
+                            Apply →
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-400">No apply link</span>
+                        )}
+
+                        <button
+                          onClick={() => deleteApplication(app.id)}
+                          className="text-xs font-semibold text-rose-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))}
 
@@ -392,13 +452,25 @@ export default function ApplicationsPage() {
                       <td className="px-6 py-4 text-slate-600">{app.role}</td>
 
                       <td className="px-6 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyles(
+                        <select
+                          value={app.status}
+                          disabled={updatingId === app.id}
+                          onChange={(e) =>
+                            updateStatus(
+                              app.id,
+                              e.target.value as ApplicationStatus
+                            )
+                          }
+                          className={`rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold outline-none ${getStatusStyles(
                             app.status
                           )}`}
                         >
-                          {formatStatus(app.status)}
-                        </span>
+                          {columns.map((status) => (
+                            <option key={status} value={status}>
+                              {formatStatus(status)}
+                            </option>
+                          ))}
+                        </select>
                       </td>
 
                       <td className="px-6 py-4 text-slate-500">
@@ -412,12 +484,27 @@ export default function ApplicationsPage() {
                       </td>
 
                       <td className="px-6 py-4">
-                        <button
-                          onClick={() => deleteApplication(app.id)}
-                          className="text-sm font-semibold text-rose-600"
-                        >
-                          Delete
-                        </button>
+                        <div className="flex items-center gap-3">
+                          {app.apply_url ? (
+                            <a
+                              href={app.apply_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-semibold text-indigo-600"
+                            >
+                              Apply
+                            </a>
+                          ) : (
+                            <span className="text-sm text-slate-400">No link</span>
+                          )}
+
+                          <button
+                            onClick={() => deleteApplication(app.id)}
+                            className="text-sm font-semibold text-rose-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
