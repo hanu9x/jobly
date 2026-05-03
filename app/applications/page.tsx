@@ -12,17 +12,17 @@ type ApplicationStatus =
   | "offer"
   | "rejected";
 
-  type ApplicationItem = {
-    id: string;
-    company: string;
-    role: string;
-    location: string | null;
-    status: ApplicationStatus;
-    deadline: string | null;
-    notes: string | null;
-    apply_url: string | null;
-    created_at: string;
-  };
+type ApplicationItem = {
+  id: string;
+  company: string;
+  role: string;
+  location: string | null;
+  status: ApplicationStatus;
+  deadline: string | null;
+  notes: string | null;
+  apply_url: string | null;
+  created_at: string;
+};
 
 const columns: ApplicationStatus[] = [
   "saved",
@@ -40,17 +40,34 @@ function formatStatus(status: ApplicationStatus) {
 function getStatusStyles(status: ApplicationStatus) {
   switch (status) {
     case "saved":
-      return "bg-slate-100 text-slate-700";
+      return "bg-slate-100 text-slate-700 border-slate-200";
     case "applying":
-      return "bg-emerald-100 text-emerald-700";
+      return "bg-yellow-100 text-yellow-700 border-yellow-200";
     case "applied":
-      return "bg-blue-100 text-blue-700";
+      return "bg-blue-100 text-blue-700 border-blue-200";
     case "interview":
-      return "bg-violet-100 text-violet-700";
+      return "bg-violet-100 text-violet-700 border-violet-200";
     case "offer":
-      return "bg-amber-100 text-amber-700";
+      return "bg-emerald-100 text-emerald-700 border-emerald-200";
     case "rejected":
-      return "bg-rose-100 text-rose-700";
+      return "bg-rose-100 text-rose-700 border-rose-200";
+  }
+}
+
+function getColumnStyles(status: ApplicationStatus) {
+  switch (status) {
+    case "saved":
+      return "border-slate-200 bg-slate-50";
+    case "applying":
+      return "border-yellow-200 bg-yellow-50";
+    case "applied":
+      return "border-blue-200 bg-blue-50";
+    case "interview":
+      return "border-violet-200 bg-violet-50";
+    case "offer":
+      return "border-emerald-200 bg-emerald-50";
+    case "rejected":
+      return "border-rose-200 bg-rose-50";
   }
 }
 
@@ -59,11 +76,20 @@ export default function ApplicationsPage() {
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [showRejected, setShowRejected] = useState(false);
 
+  useEffect(() => {
+    const saved = localStorage.getItem("showRejected");
+    setShowRejected(saved === "true");
+  }, []);
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [location, setLocation] = useState("");
   const [deadline, setDeadline] = useState("");
+
+  const visibleColumns = showRejected
+    ? columns
+    : columns.filter((column) => column !== "rejected");
 
   const fetchApplications = async () => {
     setLoading(true);
@@ -95,6 +121,22 @@ export default function ApplicationsPage() {
 
   useEffect(() => {
     fetchApplications();
+  }, []);
+  useEffect(() => {
+    const loadPreference = () => {
+      const saved = localStorage.getItem("showRejected");
+      setShowRejected(saved === "true");
+    };
+  
+    loadPreference();
+  
+    window.addEventListener("storage", loadPreference);
+    window.addEventListener("focus", loadPreference);
+  
+    return () => {
+      window.removeEventListener("storage", loadPreference);
+      window.removeEventListener("focus", loadPreference);
+    };
   }, []);
 
   const grouped = useMemo(() => {
@@ -181,7 +223,7 @@ export default function ApplicationsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto max-w-[1600px] px-5 py-6 md:px-8 md:py-8">
+      <div className="mx-auto max-w-[1700px] px-5 py-6 md:px-8 md:py-8">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="text-sm font-medium uppercase tracking-[0.18em] text-indigo-600">
@@ -191,8 +233,8 @@ export default function ApplicationsPage() {
               Your application pipeline
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">
-              Track every role, see what stage it is in, and jump into details
-              fast.
+              Move roles through Saved, Applying, Applied, Interview, and Offer.
+              Show rejected only when you need it.
             </p>
           </div>
 
@@ -209,13 +251,6 @@ export default function ApplicationsPage() {
               className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
             >
               Discover
-            </Link>
-
-            <Link
-              href="/login"
-              className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
-            >
-              Login
             </Link>
           </div>
         </div>
@@ -266,12 +301,26 @@ export default function ApplicationsPage() {
           </button>
         </div>
 
-        <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
-          <div className="grid gap-4 sm:grid-cols-3 md:w-[520px]">
+        <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+          <div className="grid gap-4 sm:grid-cols-5 xl:w-[880px]">
             <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">Total Applications</div>
+              <div className="text-sm text-slate-500">Saved</div>
               <div className="mt-2 text-2xl font-semibold">
-                {applications.length}
+                {grouped.saved.length}
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-yellow-50 p-4">
+              <div className="text-sm text-yellow-600">Applying</div>
+              <div className="mt-2 text-2xl font-semibold text-yellow-700">
+                {grouped.applying.length}
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-blue-50 p-4">
+              <div className="text-sm text-blue-500">Applied</div>
+              <div className="mt-2 text-2xl font-semibold text-blue-700">
+                {grouped.applied.length}
               </div>
             </div>
 
@@ -282,36 +331,40 @@ export default function ApplicationsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-amber-50 p-4">
-              <div className="text-sm text-amber-500">Offers</div>
-              <div className="mt-2 text-2xl font-semibold text-amber-700">
+            <div className="rounded-2xl bg-emerald-50 p-4">
+              <div className="text-sm text-emerald-500">Offers</div>
+              <div className="mt-2 text-2xl font-semibold text-emerald-700">
                 {grouped.offer.length}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1">
-            <button
-              onClick={() => setView("board")}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                view === "board"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500"
-              }`}
-            >
-              Board
-            </button>
+          <div className="flex flex-wrap items-center gap-3">
+            
 
-            <button
-              onClick={() => setView("table")}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                view === "table"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500"
-              }`}
-            >
-              Table
-            </button>
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1">
+              <button
+                onClick={() => setView("board")}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  view === "board"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500"
+                }`}
+              >
+                Board
+              </button>
+
+              <button
+                onClick={() => setView("table")}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  view === "table"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500"
+                }`}
+              >
+                Table
+              </button>
+            </div>
           </div>
         </div>
 
@@ -330,17 +383,25 @@ export default function ApplicationsPage() {
             </p>
           </div>
         ) : view === "board" ? (
-          <div className="grid gap-4 xl:grid-cols-6">
-            {columns.map((column) => (
+          <div
+            className={`grid gap-4 ${
+              showRejected
+                ? "md:grid-cols-2 xl:grid-cols-6"
+                : "md:grid-cols-2 xl:grid-cols-5"
+            }`}
+          >
+            {visibleColumns.map((column) => (
               <div
                 key={column}
-                className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+                className={`rounded-3xl border p-4 shadow-sm ${getColumnStyles(
+                  column
+                )}`}
               >
                 <div className="mb-4 flex items-center justify-between">
                   <div className="text-sm font-semibold text-slate-900">
                     {formatStatus(column)}
                   </div>
-                  <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                  <div className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
                     {grouped[column].length}
                   </div>
                 </div>
@@ -349,21 +410,33 @@ export default function ApplicationsPage() {
                   {grouped[column].map((app) => (
                     <div
                       key={app.id}
-                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white hover:shadow-sm"
+                      className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm"
                     >
-                      <div className="text-sm font-semibold text-slate-900">
-                        {app.company}
-                      </div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {app.company}
+                          </div>
 
-                      <div className="mt-1 text-sm text-slate-600">
-                        {app.role}
+                          <div className="mt-1 text-sm text-slate-600">
+                            {app.role}
+                          </div>
+                        </div>
+
+                        <span
+                          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getStatusStyles(
+                            app.status
+                          )}`}
+                        >
+                          {formatStatus(app.status)}
+                        </span>
                       </div>
 
                       <div className="mt-3 text-xs text-slate-500">
                         {app.location || "No location"}
                       </div>
 
-                      <div className="mt-3 text-xs font-medium text-slate-500">
+                      <div className="mt-2 text-xs font-medium text-slate-500">
                         {app.deadline
                           ? `Deadline: ${new Date(
                               app.deadline
@@ -380,7 +453,7 @@ export default function ApplicationsPage() {
                             e.target.value as ApplicationStatus
                           )
                         }
-                        className={`mt-4 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none ${getStatusStyles(
+                        className={`mt-4 w-full rounded-xl border px-3 py-2 text-xs font-semibold outline-none ${getStatusStyles(
                           app.status
                         )}`}
                       >
@@ -402,7 +475,9 @@ export default function ApplicationsPage() {
                             Apply →
                           </a>
                         ) : (
-                          <span className="text-xs text-slate-400">No apply link</span>
+                          <span className="text-xs text-slate-400">
+                            No apply link
+                          </span>
                         )}
 
                         <button
@@ -416,7 +491,7 @@ export default function ApplicationsPage() {
                   ))}
 
                   {grouped[column].length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-400">
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-4 text-sm text-slate-400">
                       No applications here yet
                     </div>
                   )}
@@ -461,7 +536,7 @@ export default function ApplicationsPage() {
                               e.target.value as ApplicationStatus
                             )
                           }
-                          className={`rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold outline-none ${getStatusStyles(
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold outline-none ${getStatusStyles(
                             app.status
                           )}`}
                         >
@@ -495,7 +570,9 @@ export default function ApplicationsPage() {
                               Apply
                             </a>
                           ) : (
-                            <span className="text-sm text-slate-400">No link</span>
+                            <span className="text-sm text-slate-400">
+                              No link
+                            </span>
                           )}
 
                           <button
@@ -508,6 +585,17 @@ export default function ApplicationsPage() {
                       </td>
                     </tr>
                   ))}
+
+                  {applications.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-6 py-10 text-center text-sm text-slate-400"
+                      >
+                        No applications yet.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

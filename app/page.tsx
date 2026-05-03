@@ -197,7 +197,7 @@ export default function HomePage() {
       card: "bg-rose-50 border-rose-200 hover:bg-rose-100",
       text: "text-rose-700",
       subtext: "text-rose-500",
-      description: "Apps with deadlines",
+      description: "Due in 3 days or less",
     },
     {
       label: "Applications" as PanelType,
@@ -293,7 +293,7 @@ export default function HomePage() {
             </p>
 
             <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
-              ✨ Based on your pipeline, Jobly is prioritizing your upcoming
+              Based on your pipeline, Jobly is prioritizing your upcoming
               deadlines, interviews, and follow-ups.
             </div>
           </div>

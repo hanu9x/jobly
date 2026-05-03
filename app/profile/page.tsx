@@ -29,16 +29,19 @@ function joinArray(value: string[] | null | undefined) {
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const [skills, setSkills] = useState("");
   const [interests, setInterests] = useState("");
   const [preferredLocations, setPreferredLocations] = useState("");
   const [targetRoles, setTargetRoles] = useState("");
+  const [showRejected, setShowRejected] = useState(false);
 
   const fetchProfile = async () => {
     setLoading(true);
+
+    const savedPreference = localStorage.getItem("showRejected");
+    setShowRejected(savedPreference === "true");
 
     const { data: userData } = await supabase.auth.getUser();
     const user = userData.user;
@@ -79,6 +82,11 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  const updateShowRejected = (value: boolean) => {
+    setShowRejected(value);
+    localStorage.setItem("showRejected", String(value));
+  };
 
   const saveProfile = async () => {
     setSaving(true);
@@ -365,15 +373,43 @@ export default function ProfilePage() {
 
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold tracking-tight">
+                  Preferences
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Control how your workspace looks.
+                </p>
+
+                <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl bg-slate-50 p-4">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      Show rejected applications
+                    </div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      Turn this on only when you want to review rejected roles.
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => updateShowRejected(!showRejected)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      showRejected
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {showRejected ? "On" : "Off"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-semibold tracking-tight">
                   Personalization Status
                 </h2>
 
                 <div className="mt-5 space-y-3">
                   {[
-                    {
-                      label: "Skills added",
-                      value: splitInput(skills).length,
-                    },
+                    { label: "Skills added", value: splitInput(skills).length },
                     {
                       label: "Target roles added",
                       value: splitInput(targetRoles).length,
