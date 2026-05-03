@@ -151,6 +151,24 @@ function getTagStyles(type: JobType) {
   }
 }
 
+function datePlusDays(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  date.setHours(23, 59, 0, 0);
+  return date.toISOString();
+}
+
+function dateInputValuePlusDays(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 export default function DiscoverPage() {
   const [selectedType, setSelectedType] = useState<"All" | JobType>("All");
   const [query, setQuery] = useState("");
@@ -160,6 +178,11 @@ export default function DiscoverPage() {
   const [realJobs, setRealJobs] = useState<Job[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [trackedKeys, setTrackedKeys] = useState<string[]>([]);
+
+  const [selectedJob, setSelectedJob] = useState<
+    (Job & { match: number; tracked: boolean }) | null
+  >(null);
+  const [customDeadline, setCustomDeadline] = useState("");
 
   useEffect(() => {
     const fetchJobs = async () => {
@@ -314,10 +337,35 @@ export default function DiscoverPage() {
     });
   }, [selectedType, query, rankedJobs]);
 
-  const trackJob = async (job: Job & { match: number; tracked: boolean }) => {
+  const openTrackModal = async (job: Job & { match: number; tracked: boolean }) => {
+    const { data: userData } = await supabase.auth.getUser();
+
+    if (!userData.user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    if (job.tracked) return;
+
+    setSelectedJob(job);
+    setCustomDeadline(dateInputValuePlusDays(14));
+  };
+
+  const closeTrackModal = () => {
+    setSelectedJob(null);
+    setCustomDeadline("");
+  };
+
+  const trackJobWithDeadline = async (deadlineIso: string | null) => {
+    if (!selectedJob) return;
+
+    const job = selectedJob;
     const jobKey = getJobKey(job);
 
-    if (trackedKeys.includes(jobKey)) return;
+    if (trackedKeys.includes(jobKey)) {
+      closeTrackModal();
+      return;
+    }
 
     setSavingJobId(job.id);
 
@@ -337,9 +385,10 @@ export default function DiscoverPage() {
         role: job.title,
         location: job.location,
         status: "saved",
-        notes: `${job.reason} Match score: ${job.match}%. Extracted skills: ${job.skills.join(
-          ", "
-        )}.`,
+        deadline: deadlineIso,
+        notes: `${job.reason} Match score: ${
+          job.match
+        }%. Extracted skills: ${job.skills.join(", ")}.`,
         apply_url: job.applyUrl,
       },
     ]);
@@ -353,6 +402,17 @@ export default function DiscoverPage() {
     }
 
     setTrackedKeys((prev) => [...prev, jobKey]);
+    closeTrackModal();
+  };
+
+  const trackWithCustomDate = () => {
+    if (!customDeadline) {
+      alert("Please choose a date.");
+      return;
+    }
+
+    const deadline = new Date(`${customDeadline}T23:59:00`);
+    trackJobWithDeadline(deadline.toISOString());
   };
 
   return (
@@ -505,7 +565,7 @@ export default function DiscoverPage() {
                       </a>
 
                       <button
-                        onClick={() => trackJob(job)}
+                        onClick={() => openTrackModal(job)}
                         disabled={savingJobId === job.id || job.tracked}
                         className={`rounded-xl px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed ${
                           job.tracked
@@ -543,6 +603,102 @@ export default function DiscoverPage() {
           )}
         </div>
       </div>
+
+      {selectedJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium uppercase tracking-[0.18em] text-indigo-600">
+                  Track Job
+                </div>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                  When do you want to apply by?
+                </h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  {selectedJob.company} • {selectedJob.title}
+                </p>
+              </div>
+
+              <button
+                onClick={closeTrackModal}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <button
+                onClick={() => trackJobWithDeadline(datePlusDays(7))}
+                disabled={savingJobId === selectedJob.id}
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:bg-white hover:shadow-sm disabled:opacity-60"
+              >
+                <div className="text-sm font-semibold text-slate-900">
+                  7 days
+                </div>
+                <div className="mt-1 text-xs text-slate-500">Apply soon</div>
+              </button>
+
+              <button
+                onClick={() => trackJobWithDeadline(datePlusDays(14))}
+                disabled={savingJobId === selectedJob.id}
+                className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4 text-left transition hover:bg-white hover:shadow-sm disabled:opacity-60"
+              >
+                <div className="text-sm font-semibold text-indigo-700">
+                  14 days
+                </div>
+                <div className="mt-1 text-xs text-indigo-600">
+                  Recommended
+                </div>
+              </button>
+
+              <button
+                onClick={() => trackJobWithDeadline(datePlusDays(30))}
+                disabled={savingJobId === selectedJob.id}
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:bg-white hover:shadow-sm disabled:opacity-60"
+              >
+                <div className="text-sm font-semibold text-slate-900">
+                  30 days
+                </div>
+                <div className="mt-1 text-xs text-slate-500">Low pressure</div>
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <label className="block">
+                <div className="mb-2 text-sm font-semibold text-slate-700">
+                  Custom deadline
+                </div>
+                <input
+                  type="date"
+                  value={customDeadline}
+                  onChange={(e) => setCustomDeadline(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-300"
+                />
+              </label>
+
+              <button
+                onClick={trackWithCustomDate}
+                disabled={savingJobId === selectedJob.id}
+                className="mt-4 w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {savingJobId === selectedJob.id
+                  ? "Tracking..."
+                  : "Track with custom deadline"}
+              </button>
+            </div>
+
+            <button
+              onClick={() => trackJobWithDeadline(null)}
+              disabled={savingJobId === selectedJob.id}
+              className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+            >
+              Track without deadline
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -186,18 +186,28 @@ export default function HomePage() {
     }, {} as Record<number, CalendarEvent[]>);
   }, [events]);
 
-  const deadlineApps = applications.filter((app) => app.deadline);
+  const oneWeekFromNow = new Date();
+  oneWeekFromNow.setDate(today.getDate() + 7);
+  oneWeekFromNow.setHours(23, 59, 59, 999);
+
+  const urgentDeadlineApps = applications.filter((app) => {
+    if (!app.deadline) return false;
+
+    const deadlineDate = new Date(app.deadline);
+
+    return deadlineDate >= today && deadlineDate <= oneWeekFromNow;
+  });
   const interviewApps = applications.filter((app) => app.status === "interview");
   const followUpApps = applications.filter((app) => app.status === "applied");
 
   const stats = [
     {
       label: "Deadlines" as PanelType,
-      value: String(deadlineApps.length),
+      value: String(urgentDeadlineApps.length),
       card: "bg-rose-50 border-rose-200 hover:bg-rose-100",
       text: "text-rose-700",
       subtext: "text-rose-500",
-      description: "Due in 3 days or less",
+      description: "Due this week",
     },
     {
       label: "Applications" as PanelType,
@@ -230,7 +240,7 @@ export default function HomePage() {
 
   const selectedPanelApplications =
     selectedPanel === "Deadlines"
-      ? deadlineApps
+      ? urgentDeadlineApps
       : selectedPanel === "Applications"
       ? applications
       : selectedPanel === "Interviews"
