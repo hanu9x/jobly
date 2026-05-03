@@ -18,6 +18,7 @@ type Job = {
   interests: string[];
   posted: string;
   content: string;
+  applyUrl: string;
 };
 
 type Profile = {
@@ -181,6 +182,7 @@ export default function DiscoverPage() {
               .slice(0, 15)
               .map((job: any) => {
                 const cleanContent = stripHtml(job.content || "");
+
                 const extractedSkills = extractKeywords(
                   cleanContent,
                   SKILL_KEYWORDS
@@ -212,6 +214,7 @@ export default function DiscoverPage() {
                       : ["General"],
                   posted: "Live",
                   content: cleanContent,
+                  applyUrl: job.absolute_url || "#",
                 };
               });
 
@@ -336,7 +339,7 @@ export default function DiscoverPage() {
         status: "saved",
         notes: `${job.reason} Match score: ${job.match}%. Extracted skills: ${job.skills.join(
           ", "
-        )}.`,
+        )}. Apply link: ${job.applyUrl}`,
       },
     ]);
 
@@ -491,9 +494,14 @@ export default function DiscoverPage() {
                     </div>
 
                     <div className="mt-3 flex gap-2 md:justify-end">
-                      <button className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
-                        Save
-                      </button>
+                      <a
+                        href={job.applyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Apply
+                      </a>
 
                       <button
                         onClick={() => trackJob(job)}

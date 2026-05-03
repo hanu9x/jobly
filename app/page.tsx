@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import { supabase } from "./lib/supabase";
 
 type ApplicationStatus =
@@ -37,8 +36,6 @@ type CalendarEvent = {
 };
 
 export default function HomePage() {
-  const pathname = usePathname();
-
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -48,15 +45,6 @@ export default function HomePage() {
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
-
-  const nav = [
-    { label: "Dashboard", href: "/" },
-    { label: "Discover", href: "/discover" },
-    { label: "Applications", href: "/applications" },
-    { label: "Calendar", href: "/calendar" },
-    { label: "AI Coach", href: "/coach" },
-    { label: "Profile", href: "/profile" },
-  ];
 
   const fetchApplications = async () => {
     setLoading(true);
@@ -198,17 +186,6 @@ export default function HomePage() {
     }, {} as Record<number, CalendarEvent[]>);
   }, [events]);
 
-  const nextFourDays = Array.from({ length: 4 }, (_, i) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() + i);
-
-    const dayEvents = events
-      .filter((event) => event.date.toDateString() === date.toDateString())
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-    return { date, events: dayEvents };
-  });
-
   const deadlineApps = applications.filter((app) => app.deadline);
   const interviewApps = applications.filter((app) => app.status === "interview");
   const followUpApps = applications.filter((app) => app.status === "applied");
@@ -272,450 +249,343 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-72 border-r border-slate-200 bg-white lg:flex lg:flex-col">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <div className="text-2xl font-semibold tracking-tight">Jobly</div>
-            <div className="mt-1 text-sm text-slate-500">
-              Your AI job search operating system
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div className="flex items-center justify-between gap-4 px-5 py-4 md:px-8">
+          <div className="w-full max-w-xl">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400">
+              Search jobs, companies, or notes...
             </div>
           </div>
 
-          <nav className="px-4 py-6">
-            <div className="space-y-1">
-              {nav.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-                    pathname === item.href
-                      ? "bg-indigo-50 text-indigo-700"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          <div className="flex items-center gap-3">
+            <Link
+              href={userEmail ? "/applications" : "/login"}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+            >
+              {userEmail ? userEmail : "Log in"}
+            </Link>
+
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white">
+                HT
+              </div>
+              <div className="hidden text-left sm:block">
+                <div className="text-sm font-semibold">Hanu</div>
+                <div className="text-xs text-slate-500">Student plan</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="px-5 py-6 md:px-8 md:py-8">
+        <section className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="text-sm font-medium uppercase tracking-[0.18em] text-indigo-600">
+              Dashboard
+            </div>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
+              Good morning, Hanu
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">
+              Welcome back — glad to see you. Here’s what we’re focusing on
+              today.
+            </p>
+
+            <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
+              ✨ Based on your pipeline, Jobly is prioritizing your upcoming
+              deadlines, interviews, and follow-ups.
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Link
+              href="/discover"
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
+            >
+              Discover
+            </Link>
+            <Link
+              href="/applications"
+              className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-200"
+            >
+              Open Applications
+            </Link>
+          </div>
+        </section>
+
+        {!userEmail && !loading && (
+          <div className="mb-8 rounded-3xl border border-indigo-200 bg-indigo-50 p-5">
+            <div className="text-sm font-semibold text-indigo-800">
+              Log in to unlock your real dashboard
+            </div>
+            <p className="mt-1 text-sm text-indigo-700">
+              Your dashboard will update with your saved applications,
+              deadlines, interviews, and next actions.
+            </p>
+            <Link
+              href="/login"
+              className="mt-4 inline-flex rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white"
+            >
+              Log in
+            </Link>
+          </div>
+        )}
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => (
+            <button
+              key={stat.label}
+              onClick={() => setSelectedPanel(stat.label)}
+              className={`rounded-3xl border p-5 text-left shadow-sm transition ${stat.card}`}
+            >
+              <div className={`text-sm font-medium ${stat.subtext}`}>
+                {stat.label}
+              </div>
+              <div
+                className={`mt-3 text-3xl font-semibold tracking-tight ${stat.text}`}
+              >
+                {loading ? "..." : stat.value}
+              </div>
+              <div className={`mt-2 text-xs font-medium ${stat.subtext}`}>
+                {stat.description}
+              </div>
+            </button>
+          ))}
+        </section>
+
+        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Calendar</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                See everything due this month at a glance
+              </p>
+            </div>
+            <div className="text-sm font-semibold text-indigo-600">
+              {monthName}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-3 text-center text-sm font-semibold text-slate-500">
+            {weekDays.map((day) => (
+              <div key={day} className="py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-2 grid grid-cols-7 gap-3">
+            {calendarCells.map((day, idx) => {
+              const isToday = day === today.getDate();
+              const dayEvents = day ? calendarEventsByDay[day] || [] : [];
+
+              return (
+                <div
+                  key={idx}
+                  className={`min-h-[120px] rounded-2xl border p-3 text-left ${
+                    day
+                      ? "border-slate-200 bg-slate-50"
+                      : "border-transparent bg-transparent"
                   }`}
                 >
-                  <span className="mr-3 inline-block h-2.5 w-2.5 rounded-full bg-current opacity-60" />
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </nav>
+                  {day && (
+                    <>
+                      <div
+                        className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                          isToday
+                            ? "bg-indigo-600 text-white"
+                            : "text-slate-700"
+                        }`}
+                      >
+                        {day}
+                      </div>
 
-          <div className="border-t border-slate-200 px-4 py-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-900">
-                Upcoming Schedule
-              </div>
-              <span className="text-xs font-medium text-indigo-600">4 days</span>
-            </div>
-
-            <div className="space-y-4">
-              {nextFourDays.map((day) => (
-                <div key={day.date.toDateString()}>
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    {day.date.toLocaleDateString("en-US", {
-                      weekday: "long",
-                    })}
-                  </div>
-
-                  {day.events.length > 0 ? (
-                    <div className="space-y-2">
-                      {day.events.map((item) => (
-                        <Link
-                          key={item.id}
-                          href="/applications"
-                          className="block rounded-2xl border border-slate-200 bg-slate-50 p-3 transition hover:bg-white hover:shadow-sm"
+                      {dayEvents.length > 0 && (
+                        <button
+                          onClick={() => setSelectedDay(day)}
+                          className="rounded-xl bg-indigo-50 px-3 py-2 text-left text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="truncate text-xs font-semibold text-slate-900">
-                              {item.company}
-                            </div>
-                            <span
-                              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${getEventColor(
-                                item.type
-                              )}`}
-                            >
-                              {item.type}
-                            </span>
-                          </div>
-
-                          <div className="mt-1 truncate text-xs text-slate-500">
-                            {item.role}
-                          </div>
-
-                          <div className="mt-2 text-[11px] font-medium text-slate-500">
-                            {formatOnlyTime(item.date)}
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-400">
-                      No events
-                    </div>
+                          {dayEvents.length}{" "}
+                          {dayEvents.length === 1 ? "event" : "events"}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
+        </section>
 
-          <div className="mt-auto border-t border-slate-200 p-4">
-            <div className="rounded-3xl bg-slate-900 p-4 text-white shadow-sm">
-              <div className="text-sm font-semibold">Upgrade to Pro</div>
-              <p className="mt-1 text-sm text-slate-300">
-                Get AI recommendations, deeper analytics, and automated
-                follow-ups.
-              </p>
-              <button className="mt-4 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900">
-                View Plans
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        <main className="flex-1">
-          <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
-            <div className="flex items-center justify-between gap-4 px-5 py-4 md:px-8">
-              <div className="w-full max-w-xl">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400">
-                  Search jobs, companies, or notes...
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Link
-                  href={userEmail ? "/applications" : "/login"}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
-                >
-                  {userEmail ? userEmail : "Log in"}
-                </Link>
-
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white">
-                    HT
-                  </div>
-                  <div className="hidden text-left sm:block">
-                    <div className="text-sm font-semibold">Hanu</div>
-                    <div className="text-xs text-slate-500">Student plan</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </header>
-
-          <div className="px-5 py-6 md:px-8 md:py-8">
-            <section className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <section className="mt-8 grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium uppercase tracking-[0.18em] text-indigo-600">
-                  Dashboard
-                </div>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
-                  Good morning, Hanu
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">
-                  Welcome back — glad to see you. Here’s what we’re focusing on
-                  today.
+                <h2 className="text-xl font-semibold tracking-tight">
+                  Recent Applications
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Your latest saved roles from the database
                 </p>
-
-                <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
-                  ✨ Based on your pipeline, Jobly is prioritizing your upcoming
-                  deadlines, interviews, and follow-ups.
-                </div>
               </div>
+              <Link
+                href="/applications"
+                className="text-sm font-semibold text-indigo-600"
+              >
+                View all
+              </Link>
+            </div>
 
-              <div className="flex gap-3">
-                <Link
-                  href="/discover"
-                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
-                >
-                  Discover
-                </Link>
-                <Link
-                  href="/applications"
-                  className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-200"
-                >
-                  Open Applications
-                </Link>
-              </div>
-            </section>
-
-            {!userEmail && !loading && (
-              <div className="mb-8 rounded-3xl border border-indigo-200 bg-indigo-50 p-5">
-                <div className="text-sm font-semibold text-indigo-800">
-                  Log in to unlock your real dashboard
-                </div>
-                <p className="mt-1 text-sm text-indigo-700">
-                  Your dashboard will update with your saved applications,
-                  deadlines, interviews, and next actions.
-                </p>
-                <Link
-                  href="/login"
-                  className="mt-4 inline-flex rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white"
-                >
-                  Log in
-                </Link>
-              </div>
-            )}
-
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {stats.map((stat) => (
-                <button
-                  key={stat.label}
-                  onClick={() => setSelectedPanel(stat.label)}
-                  className={`rounded-3xl border p-5 text-left shadow-sm transition ${stat.card}`}
-                >
-                  <div className={`text-sm font-medium ${stat.subtext}`}>
-                    {stat.label}
-                  </div>
+            <div className="mt-5 space-y-4">
+              {recentApplications.length > 0 ? (
+                recentApplications.map((app) => (
                   <div
-                    className={`mt-3 text-3xl font-semibold tracking-tight ${stat.text}`}
+                    key={app.id}
+                    className="rounded-3xl border border-slate-200 p-5 transition hover:border-slate-300 hover:shadow-md"
                   >
-                    {loading ? "..." : stat.value}
-                  </div>
-                  <div className={`mt-2 text-xs font-medium ${stat.subtext}`}>
-                    {stat.description}
-                  </div>
-                </button>
-              ))}
-            </section>
-
-            <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold tracking-tight">
-                    Calendar
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    See everything due this month at a glance
-                  </p>
-                </div>
-                <div className="text-sm font-semibold text-indigo-600">
-                  {monthName}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-7 gap-3 text-center text-sm font-semibold text-slate-500">
-                {weekDays.map((day) => (
-                  <div key={day} className="py-2">
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-2 grid grid-cols-7 gap-3">
-                {calendarCells.map((day, idx) => {
-                  const isToday = day === today.getDate();
-                  const dayEvents = day ? calendarEventsByDay[day] || [] : [];
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`min-h-[120px] rounded-2xl border p-3 text-left ${
-                        day
-                          ? "border-slate-200 bg-slate-50"
-                          : "border-transparent bg-transparent"
-                      }`}
-                    >
-                      {day && (
-                        <>
-                          <div
-                            className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
-                              isToday
-                                ? "bg-indigo-600 text-white"
-                                : "text-slate-700"
-                            }`}
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-semibold">{app.role}</h3>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(
+                              app.status
+                            )}`}
                           >
-                            {day}
-                          </div>
-
-                          {dayEvents.length > 0 && (
-                            <button
-                              onClick={() => setSelectedDay(day)}
-                              className="rounded-xl bg-indigo-50 px-3 py-2 text-left text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
-                            >
-                              {dayEvents.length}{" "}
-                              {dayEvents.length === 1 ? "event" : "events"}
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="mt-8 grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold tracking-tight">
-                      Recent Applications
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Your latest saved roles from the database
-                    </p>
-                  </div>
-                  <Link
-                    href="/applications"
-                    className="text-sm font-semibold text-indigo-600"
-                  >
-                    View all
-                  </Link>
-                </div>
-
-                <div className="mt-5 space-y-4">
-                  {recentApplications.length > 0 ? (
-                    recentApplications.map((app) => (
-                      <div
-                        key={app.id}
-                        className="rounded-3xl border border-slate-200 p-5 transition hover:border-slate-300 hover:shadow-md"
-                      >
-                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-semibold">
-                                {app.role}
-                              </h3>
-                              <span
-                                className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(
-                                  app.status
-                                )}`}
-                              >
-                                {formatStatus(app.status)}
-                              </span>
-                            </div>
-                            <div className="mt-1 text-sm font-medium text-slate-700">
-                              {app.company}
-                            </div>
-                            <div className="mt-1 text-sm text-slate-500">
-                              {app.location || "No location"}{" "}
-                              {app.deadline
-                                ? `• Deadline ${new Date(
-                                    app.deadline
-                                  ).toLocaleDateString()}`
-                                : ""}
-                            </div>
-                          </div>
-
-                          <Link
-                            href="/applications"
-                            className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white"
-                          >
-                            Open
-                          </Link>
+                            {formatStatus(app.status)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-sm font-medium text-slate-700">
+                          {app.company}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-500">
+                          {app.location || "No location"}{" "}
+                          {app.deadline
+                            ? `• Deadline ${new Date(
+                                app.deadline
+                              ).toLocaleDateString()}`
+                            : ""}
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
-                      No applications yet. Add your first application to see it
-                      here.
+
+                      <Link
+                        href="/applications"
+                        className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                      >
+                        Open
+                      </Link>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <h2 className="text-xl font-semibold tracking-tight">
-                    AI Next Actions
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Your smartest moves right now
-                  </p>
-
-                  <div className="mt-5 space-y-3">
-                    {events.length > 0 ? (
-                      events.slice(0, 4).map((event, idx) => (
-                        <Link
-                          key={event.id}
-                          href="/applications"
-                          className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 transition hover:bg-slate-100"
-                        >
-                          <div
-                            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
-                              event.type === "Deadline"
-                                ? "bg-rose-100 text-rose-600"
-                                : event.type === "Follow-up"
-                                ? "bg-amber-100 text-amber-600"
-                                : event.type === "Interview"
-                                ? "bg-violet-100 text-violet-600"
-                                : "bg-emerald-100 text-emerald-600"
-                            }`}
-                          >
-                            {idx + 1}
-                          </div>
-
-                          <div>
-                            <div className="text-sm font-semibold text-slate-900">
-                              {event.title}
-                            </div>
-                            <div className="mt-1 text-sm text-slate-500">
-                              {event.company} • {formatEventTime(event.date)}
-                            </div>
-                          </div>
-                        </Link>
-                      ))
-                    ) : (
-                      <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                        Add deadlines to your applications and Jobly will turn
-                        them into next actions.
-                      </div>
-                    )}
                   </div>
+                ))
+              ) : (
+                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                  No applications yet. Add your first application to see it
+                  here.
                 </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold tracking-tight">
-                      Upcoming
-                    </h2>
-                    <Link
-                      href="/calendar"
-                      className="text-sm font-semibold text-indigo-600"
-                    >
-                      Calendar
-                    </Link>
-                  </div>
-
-                  <div className="mt-5 space-y-3">
-                    {upcoming.length > 0 ? (
-                      upcoming.map((item) => (
-                        <Link
-                          key={item.id}
-                          href="/applications"
-                          className="block rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="text-sm font-semibold">
-                                {item.title}
-                              </div>
-                              <div className="mt-1 text-sm text-slate-500">
-                                {formatEventTime(item.date)}
-                              </div>
-                            </div>
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${getEventColor(
-                                item.type
-                              )}`}
-                            >
-                              {item.type}
-                            </span>
-                          </div>
-                        </Link>
-                      ))
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-400">
-                        No upcoming deadlines yet
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
+              )}
+            </div>
           </div>
-        </main>
+
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-xl font-semibold tracking-tight">
+                AI Next Actions
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Your smartest moves right now
+              </p>
+
+              <div className="mt-5 space-y-3">
+                {events.length > 0 ? (
+                  events.slice(0, 4).map((event, idx) => (
+                    <Link
+                      key={event.id}
+                      href="/applications"
+                      className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 transition hover:bg-slate-100"
+                    >
+                      <div
+                        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
+                          event.type === "Deadline"
+                            ? "bg-rose-100 text-rose-600"
+                            : event.type === "Follow-up"
+                            ? "bg-amber-100 text-amber-600"
+                            : event.type === "Interview"
+                            ? "bg-violet-100 text-violet-600"
+                            : "bg-emerald-100 text-emerald-600"
+                        }`}
+                      >
+                        {idx + 1}
+                      </div>
+
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {event.title}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-500">
+                          {event.company} • {formatEventTime(event.date)}
+                        </div>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                    Add deadlines to your applications and Jobly will turn them
+                    into next actions.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold tracking-tight">
+                  Upcoming
+                </h2>
+                <Link
+                  href="/calendar"
+                  className="text-sm font-semibold text-indigo-600"
+                >
+                  Calendar
+                </Link>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {upcoming.length > 0 ? (
+                  upcoming.map((item) => (
+                    <Link
+                      key={item.id}
+                      href="/applications"
+                      className="block rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold">
+                            {item.title}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            {formatEventTime(item.date)}
+                          </div>
+                        </div>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getEventColor(
+                            item.type
+                          )}`}
+                        >
+                          {item.type}
+                        </span>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-400">
+                    No upcoming deadlines yet
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       {(selectedDay !== null || selectedPanel !== null) && (
@@ -730,7 +600,8 @@ export default function HomePage() {
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
                       {selectedDayEvents.length}{" "}
-                      {selectedDayEvents.length === 1 ? "item" : "items"} scheduled
+                      {selectedDayEvents.length === 1 ? "item" : "items"}{" "}
+                      scheduled
                     </p>
                   </>
                 ) : selectedPanel !== null ? (
